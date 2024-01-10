@@ -6,9 +6,9 @@ entity = "acme"
 project = "test-ldm-training"
 
 [models]
-unet = {checkpoint = "tests/weights/stable-diffusion-1-5/unet.safetensors"}
-text_encoder = {checkpoint = "tests/weights/stable-diffusion-1-5/CLIPTextEncoderL.safetensors"}
-lda = {checkpoint = "tests/weights/stable-diffusion-1-5/lda.safetensors"}
+unet = {checkpoint = "tests/weights/stable-diffusion-1-5/unet.safetensors", gpu_index = 1}
+text_encoder = {checkpoint = "tests/weights/stable-diffusion-1-5/CLIPTextEncoderL.safetensors", gpu_index = 0}
+lda = {checkpoint = "tests/weights/stable-diffusion-1-5/lda.safetensors", gpu_index = 0}
 
 [latent_diffusion]
 unconditional_sampling_probability = 0.2
@@ -17,7 +17,7 @@ offset_noise = 0.1
 [training]
 duration = "1:epoch"
 seed = 0
-gpu_index = 0
+gpu_index = 1
 num_epochs = 1
 batch_size = 1
 gradient_accumulation = "1:step"
@@ -25,10 +25,9 @@ clip_grad_norm = 2.0
 clip_grad_value = 1.0
 evaluation_interval = "1:epoch"
 evaluation_seed = 0
-dtype = "bfloat16"
 
 [optimizer]
-optimizer = "AdamW" # "AdamW", "AdamW8bit", "Lion8bit", "Prodigy", "SGD", "Adam"
+optimizer = "AdamW8bit" # "AdamW", "AdamW8bit", "Lion8bit", "Prodigy", "SGD", "Adam"
 learning_rate = 1e-5
 betas = [0.9, 0.999]
 eps = 1e-8

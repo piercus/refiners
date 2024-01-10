@@ -428,8 +428,18 @@ class Trainer(Generic[ConfigType, Batch]):
             model.load_from_safetensors(tensors_path=checkpoint)
         else:
             logger.info(f"No checkpoint found. Initializing model `{model_name}` from scratch.")
+        
         model.requires_grad_(requires_grad=self.config.models[model_name].train)
-        model.to(self.device, dtype=self.dtype)
+        
+        gpu_index = self.config.models[model_name].gpu_index
+        if gpu_index is None:
+            logger.info(f"Using device: {self.device} for model: {model_name}")
+            device = self.device
+        else:
+            logger.info(f"Using device: cuda:{gpu_index} for model: {model_name}")
+            device = Device(device=f"cuda:{gpu_index}")
+        
+        model.to(device, dtype=self.dtype)
         model.zero_grad()
 
     def prepare_models(self) -> None:
@@ -531,7 +541,9 @@ class Trainer(Generic[ConfigType, Batch]):
         self.set_models_to_train_mode()
         self._call_callbacks(event_name="on_train_begin")
         assert self.learnable_parameters, "There are no learnable parameters in the models."
+        print('self.lda.device train0', self.lda.device)
         self.evaluate()
+        print('self.lda.device train1', self.lda.device)
         while not self.clock.done:
             self._call_callbacks(event_name="on_epoch_begin")
             self.epoch()

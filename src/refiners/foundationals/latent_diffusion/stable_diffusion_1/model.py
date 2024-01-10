@@ -30,10 +30,10 @@ class StableDiffusion_1(LatentDiffusionModel):
         device: Device | str = "cpu",
         dtype: DType = torch.float32,
     ) -> None:
-        unet = unet or SD1UNet(in_channels=4)
-        lda = lda or SD1Autoencoder()
-        clip_text_encoder = clip_text_encoder or CLIPTextEncoderL()
-        scheduler = scheduler or DPMSolver(num_inference_steps=30)
+        unet = unet or SD1UNet(in_channels=4, device=self.device)
+        lda = lda or SD1Autoencoder(device=self.device)
+        clip_text_encoder = clip_text_encoder or CLIPTextEncoderL(device=self.device)
+        scheduler = scheduler or DPMSolver(num_inference_steps=30, device=self.device)
 
         super().__init__(
             unet=unet,
@@ -43,6 +43,7 @@ class StableDiffusion_1(LatentDiffusionModel):
             device=device,
             dtype=dtype,
         )
+
 
     def compute_clip_text_embedding(self, text: str, negative_text: str = "") -> Tensor:
         conditional_embedding = self.clip_text_encoder(text)

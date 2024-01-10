@@ -174,6 +174,7 @@ class OptimizerConfig(BaseModel):
 class ModelConfig(BaseModel):
     checkpoint: Path | None = None
     train: bool = True
+    gpu_index: int | None = None
     learning_rate: float | None = None  # TODO: Implement this
 
 

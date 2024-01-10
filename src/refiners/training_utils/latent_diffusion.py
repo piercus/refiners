@@ -72,7 +72,6 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
     def __init__(self, trainer: "LatentDiffusionTrainer[Any]") -> None:
         self.trainer = trainer
         self.config = trainer.config
-        self.device = self.trainer.device
         self.lda = self.trainer.lda
         self.text_encoder = self.trainer.text_encoder
         self.dataset = self.load_huggingface_dataset()
@@ -126,9 +125,13 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
             max_size=self.config.dataset.resize_image_max_size,
         )
         processed_image = self.process_image(resized_image)
-        latents = self.lda.encode_image(image=processed_image).to(device=self.device)
+        
+        print('self.lda.device', self.lda.device)
+        
+        latents = self.lda.encode_image(image=processed_image)
+        
         processed_caption = self.process_caption(caption=caption)
-        clip_text_embedding = self.text_encoder(processed_caption).to(device=self.device)
+        clip_text_embedding = self.text_encoder(processed_caption)
         return TextEmbeddingLatentsBatch(text_embeddings=clip_text_embedding, latents=latents)
 
     def collate_fn(self, batch: list[TextEmbeddingLatentsBatch]) -> TextEmbeddingLatentsBatch:
@@ -143,21 +146,30 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
 class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
     @cached_property
     def unet(self) -> SD1UNet:
-        assert self.config.models["unet"] is not None, "The config must contain a unet entry."
-        return SD1UNet(in_channels=4, device=self.device).to(device=self.device)
+        return self.models["unet"]
 
     @cached_property
     def text_encoder(self) -> CLIPTextEncoderL:
-        assert self.config.models["text_encoder"] is not None, "The config must contain a text_encoder entry."
-        return CLIPTextEncoderL(device=self.device).to(device=self.device)
+        return self.models["text_encoder"]
 
     @cached_property
     def lda(self) -> SD1Autoencoder:
-        assert self.config.models["lda"] is not None, "The config must contain a lda entry."
-        return SD1Autoencoder(device=self.device).to(device=self.device)
+        return self.models["lda"]
 
     def load_models(self) -> dict[str, fl.Module]:
-        return {"unet": self.unet, "text_encoder": self.text_encoder, "lda": self.lda}
+        assert self.config.models["lda"] is not None, "The config must contain a lda entry."
+        lda = SD1Autoencoder()
+        
+        assert self.config.models["text_encoder"] is not None, "The config must contain a text_encoder entry."
+        text_encoder = CLIPTextEncoderL()
+        
+        assert self.config.models["unet"] is not None, "The config must contain a unet entry."
+        unet = SD1UNet(in_channels=4)
+        return {
+            "unet": unet, 
+            "text_encoder": text_encoder, 
+            "lda": lda
+        }
 
     def load_dataset(self) -> Dataset[TextEmbeddingLatentsBatch]:
         return TextEmbeddingLatentsDataset(trainer=self)
@@ -183,7 +195,7 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
         clip_text_embedding, latents = batch.text_embeddings, batch.latents
         timestep = self.sample_timestep()
         noise = self.sample_noise(size=latents.shape, dtype=latents.dtype)
-        noisy_latents = self.ddpm_scheduler.add_noise(x=latents, noise=noise, step=self.current_step)
+        noisy_latents = self.ddpm_scheduler.add_noise(x=latents.to(self.ddpm_scheduler.device), noise=noise, step=self.current_step)
         self.unet.set_timestep(timestep=timestep)
         self.unet.set_clip_text_embedding(clip_text_embedding=clip_text_embedding)
         prediction = self.unet(noisy_latents)
@@ -191,22 +203,34 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
         return loss
 
     def compute_evaluation(self) -> None:
+        logger.info(f"evaluation deactivated")
+        return
+
         sd = StableDiffusion_1(
             unet=self.unet,
             lda=self.lda,
             clip_text_encoder=self.text_encoder,
-            scheduler=DPMSolver(num_inference_steps=self.config.test_diffusion.num_inference_steps),
+            scheduler=DPMSolver(
+                num_inference_steps=self.config.test_diffusion.num_inference_steps,
+                device=self.device
+            ),
             device=self.device,
             dtype=self.dtype,
         )
+        logger.info(f"in evaluation self.lda.device 1 {self.lda.device}")
+        
         prompts = self.config.test_diffusion.prompts
         num_images_per_prompt = self.config.test_diffusion.num_images_per_prompt
         if self.config.test_diffusion.use_short_prompts:
             prompts = [prompt.split(sep=",")[0] for prompt in prompts]
         images: dict[str, WandbLoggable] = {}
+        logger.info(f"in evaluation self.lda.device 2 {self.lda.device}")
+        
         for prompt in prompts:
             canvas_image: Image.Image = Image.new(mode="RGB", size=(512, 512 * num_images_per_prompt))
             for i in range(num_images_per_prompt):
+                logger.info(f"in evaluation self.lda.device 3 {self.lda.device}")
+
                 logger.info(f"Generating image {i+1}/{num_images_per_prompt} for prompt: {prompt}")
                 x = randn(1, 4, 64, 64, device=self.device)
                 clip_text_embedding = sd.compute_clip_text_embedding(text=prompt).to(device=self.device)
@@ -216,9 +240,12 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
                         step=step,
                         clip_text_embedding=clip_text_embedding,
                     )
-                canvas_image.paste(sd.lda.decode_latents(x=x), box=(0, 512 * i))
+                
+                canvas_image.paste(sd.lda.decode_latents(x=x.to(device=sd.lda.device)), box=(0, 512 * i))
             images[prompt] = canvas_image
         self.log(data=images)
+        logger.info(f"out evaluation self.lda.device 4 {self.lda.device}")
+        
 
 
 def sample_noise(
