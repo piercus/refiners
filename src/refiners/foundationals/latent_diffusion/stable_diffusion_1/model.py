@@ -44,7 +44,6 @@ class StableDiffusion_1(LatentDiffusionModel):
             dtype=dtype,
         )
 
-
     def compute_clip_text_embedding(self, text: str, negative_text: str = "") -> Tensor:
         conditional_embedding = self.clip_text_encoder(text)
         if text == negative_text:

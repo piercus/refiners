@@ -125,11 +125,9 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
             max_size=self.config.dataset.resize_image_max_size,
         )
         processed_image = self.process_image(resized_image)
-        
-        print('self.lda.device', self.lda.device)
-        
+
         latents = self.lda.encode_image(image=processed_image)
-        
+
         processed_caption = self.process_caption(caption=caption)
         clip_text_embedding = self.text_encoder(processed_caption)
         return TextEmbeddingLatentsBatch(text_embeddings=clip_text_embedding, latents=latents)
@@ -159,17 +157,13 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
     def load_models(self) -> dict[str, fl.Module]:
         assert self.config.models["lda"] is not None, "The config must contain a lda entry."
         lda = SD1Autoencoder()
-        
+
         assert self.config.models["text_encoder"] is not None, "The config must contain a text_encoder entry."
         text_encoder = CLIPTextEncoderL()
-        
+
         assert self.config.models["unet"] is not None, "The config must contain a unet entry."
         unet = SD1UNet(in_channels=4)
-        return {
-            "unet": unet, 
-            "text_encoder": text_encoder, 
-            "lda": lda
-        }
+        return {"unet": unet, "text_encoder": text_encoder, "lda": lda}
 
     def load_dataset(self) -> Dataset[TextEmbeddingLatentsBatch]:
         return TextEmbeddingLatentsDataset(trainer=self)
@@ -195,7 +189,9 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
         clip_text_embedding, latents = batch.text_embeddings, batch.latents
         timestep = self.sample_timestep()
         noise = self.sample_noise(size=latents.shape, dtype=latents.dtype)
-        noisy_latents = self.ddpm_scheduler.add_noise(x=latents.to(self.ddpm_scheduler.device), noise=noise, step=self.current_step)
+        noisy_latents = self.ddpm_scheduler.add_noise(
+            x=latents.to(self.ddpm_scheduler.device), noise=noise, step=self.current_step
+        )
         self.unet.set_timestep(timestep=timestep)
         self.unet.set_clip_text_embedding(clip_text_embedding=clip_text_embedding)
         prediction = self.unet(noisy_latents)
@@ -203,34 +199,24 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
         return loss
 
     def compute_evaluation(self) -> None:
-        logger.info(f"evaluation deactivated")
-        return
-
         sd = StableDiffusion_1(
             unet=self.unet,
             lda=self.lda,
             clip_text_encoder=self.text_encoder,
-            scheduler=DPMSolver(
-                num_inference_steps=self.config.test_diffusion.num_inference_steps,
-                device=self.device
-            ),
+            scheduler=DPMSolver(num_inference_steps=self.config.test_diffusion.num_inference_steps, device=self.device),
             device=self.device,
             dtype=self.dtype,
         )
-        logger.info(f"in evaluation self.lda.device 1 {self.lda.device}")
-        
+
         prompts = self.config.test_diffusion.prompts
         num_images_per_prompt = self.config.test_diffusion.num_images_per_prompt
         if self.config.test_diffusion.use_short_prompts:
             prompts = [prompt.split(sep=",")[0] for prompt in prompts]
         images: dict[str, WandbLoggable] = {}
-        logger.info(f"in evaluation self.lda.device 2 {self.lda.device}")
-        
+
         for prompt in prompts:
             canvas_image: Image.Image = Image.new(mode="RGB", size=(512, 512 * num_images_per_prompt))
             for i in range(num_images_per_prompt):
-                logger.info(f"in evaluation self.lda.device 3 {self.lda.device}")
-
                 logger.info(f"Generating image {i+1}/{num_images_per_prompt} for prompt: {prompt}")
                 x = randn(1, 4, 64, 64, device=self.device)
                 clip_text_embedding = sd.compute_clip_text_embedding(text=prompt).to(device=self.device)
@@ -240,12 +226,10 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
                         step=step,
                         clip_text_embedding=clip_text_embedding,
                     )
-                
+
                 canvas_image.paste(sd.lda.decode_latents(x=x.to(device=sd.lda.device)), box=(0, 512 * i))
             images[prompt] = canvas_image
         self.log(data=images)
-        logger.info(f"out evaluation self.lda.device 4 {self.lda.device}")
-        
 
 
 def sample_noise(

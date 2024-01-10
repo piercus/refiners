@@ -6,6 +6,7 @@ from refiners.fluxion.layers import (
     Attention,
     Chain,
     Conv2d,
+    Converter,
     Flatten,
     GeLU,
     GroupNorm,
@@ -19,7 +20,6 @@ from refiners.fluxion.layers import (
     Transpose,
     Unflatten,
     UseContext,
-    Converter
 )
 
 

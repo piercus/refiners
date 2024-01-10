@@ -348,6 +348,7 @@ def sd15_std(
 
     return sd15
 
+
 @pytest.fixture
 def sd15_std(
     text_encoder_weights: Path, lda_weights: Path, unet_weights_std: Path, test_device: torch.device

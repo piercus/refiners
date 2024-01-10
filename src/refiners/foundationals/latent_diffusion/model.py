@@ -6,9 +6,9 @@ from PIL import Image
 from torch import Tensor, device as Device, dtype as DType
 
 import refiners.fluxion.layers as fl
+from refiners.fluxion.utils import summarize_tensor
 from refiners.foundationals.latent_diffusion.auto_encoder import LatentDiffusionAutoencoder
 from refiners.foundationals.latent_diffusion.schedulers.scheduler import Scheduler
-from refiners.fluxion.utils import summarize_tensor
 
 T = TypeVar("T", bound="fl.Module")
 
@@ -32,7 +32,7 @@ class LatentDiffusionModel(fl.Module, ABC):
         self.unet = unet
         self.lda = lda
         self.clip_text_encoder = clip_text_encoder
-        
+
         self.scheduler = scheduler
 
     def set_num_inference_steps(self, num_inference_steps: int) -> None:
