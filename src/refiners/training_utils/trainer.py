@@ -6,7 +6,7 @@ from typing import Any, Callable, Generic, Iterable, TypeVar, cast
 
 import numpy as np
 from loguru import logger
-from torch import Tensor, cuda, device as Device, get_rng_state, set_rng_state, stack
+from torch import Tensor, cuda, device as Device, get_rng_state, set_rng_state, stack, dtype, set_default_dtype, float32, bfloat16
 from torch.autograd import backward
 from torch.nn import Parameter
 from torch.optim import Optimizer
@@ -301,6 +301,15 @@ class Trainer(Generic[ConfigType, Batch]):
         logger.info(f"Using device: {selected_device}")
         return selected_device
 
+    @cached_property
+    def dtype(self) -> dtype:
+        DTYPES = {"float32": float32, "bfloat16": bfloat16}
+        dtype_key = self.config.training.dtype
+        assert dtype_key in DTYPES, f"Unknown dtype: {dtype_key}"
+        logger.info(f"Using dtype: {dtype_key}")
+        
+        return DTYPES[dtype_key]
+
     @property
     def parameters(self) -> list[Parameter]:
         """Returns a list of all parameters in all models"""
@@ -420,7 +429,7 @@ class Trainer(Generic[ConfigType, Batch]):
         else:
             logger.info(f"No checkpoint found. Initializing model `{model_name}` from scratch.")
         model.requires_grad_(requires_grad=self.config.models[model_name].train)
-        model.to(self.device)
+        model.to(self.device, dtype=self.dtype)
         model.zero_grad()
 
     def prepare_models(self) -> None:

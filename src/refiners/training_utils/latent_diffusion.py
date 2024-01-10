@@ -197,6 +197,7 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
             clip_text_encoder=self.text_encoder,
             scheduler=DPMSolver(num_inference_steps=self.config.test_diffusion.num_inference_steps),
             device=self.device,
+            dtype=self.dtype,
         )
         prompts = self.config.test_diffusion.prompts
         num_images_per_prompt = self.config.test_diffusion.num_images_per_prompt

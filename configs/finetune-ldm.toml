@@ -25,7 +25,7 @@ clip_grad_norm = 2.0
 clip_grad_value = 1.0
 evaluation_interval = "1:epoch"
 evaluation_seed = 0
-
+dtype = "bfloat16"
 
 [optimizer]
 optimizer = "AdamW" # "AdamW", "AdamW8bit", "Lion8bit", "Prodigy", "SGD", "Adam"
