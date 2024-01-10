@@ -6,7 +6,7 @@ from typing import Any, Callable, Generic, Iterable, TypeVar, cast
 
 import numpy as np
 from loguru import logger
-from torch import Tensor, cuda, device as Device, get_rng_state, set_rng_state, stack, dtype, set_default_dtype, float32, bfloat16
+from torch import Tensor, cuda, device as Device, get_rng_state, set_rng_state, stack, dtype, float32, bfloat16, float16
 from torch.autograd import backward
 from torch.nn import Parameter
 from torch.optim import Optimizer
@@ -303,7 +303,7 @@ class Trainer(Generic[ConfigType, Batch]):
 
     @cached_property
     def dtype(self) -> dtype:
-        DTYPES = {"float32": float32, "bfloat16": bfloat16}
+        DTYPES = {"float32": float32, "bfloat16": bfloat16, "float16": float16}
         dtype_key = self.config.training.dtype
         assert dtype_key in DTYPES, f"Unknown dtype: {dtype_key}"
         logger.info(f"Using dtype: {dtype_key}")
