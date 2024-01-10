@@ -23,7 +23,12 @@ from refiners.foundationals.latent_diffusion.schedulers import DDPM
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
 from refiners.training_utils.callback import Callback
 from refiners.training_utils.config import BaseConfig
-from refiners.training_utils.huggingface_datasets import HuggingfaceDataset, HuggingfaceDatasetConfig, load_hf_dataset
+from refiners.training_utils.huggingface_datasets import (
+    DownloadManager,
+    HuggingfaceDataset,
+    HuggingfaceDatasetConfig,
+    load_hf_dataset,
+)
 from refiners.training_utils.trainer import Trainer
 from refiners.training_utils.wandb import WandbLoggable
 
@@ -72,6 +77,7 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
         self.text_encoder = self.trainer.text_encoder
         self.dataset = self.load_huggingface_dataset()
         self.process_image = self.build_image_processor()
+        self.download_manager = DownloadManager()
         logger.info(f"Loaded {len(self.dataset)} samples from dataset")
 
     def build_image_processor(self) -> Callable[[Image.Image], Image.Image]:
@@ -98,14 +104,21 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
     def process_caption(self, caption: str) -> str:
         return caption if random.random() > self.config.latent_diffusion.unconditional_sampling_probability else ""
 
-    def get_caption(self, index: int) -> str:
-        return self.dataset[index]["caption"]
+    def get_caption(self, index: int, caption_key: str) -> str:
+        return self.dataset[index][caption_key]
 
     def get_image(self, index: int) -> Image.Image:
-        return self.dataset[index]["image"]
+        if "image" in self.dataset[index]:
+            return self.dataset[index]["image"]
+        elif "url" in self.dataset[index]:
+            url = self.dataset[index]["url"]
+            filename = self.download_manager.download(url)
+            return Image.open(filename)
+        else:
+            raise RuntimeError(f"Dataset item at index [{index}] does not contain 'image' or 'url'")
 
     def __getitem__(self, index: int) -> TextEmbeddingLatentsBatch:
-        caption = self.get_caption(index=index)
+        caption = self.get_caption(index=index, caption_key=self.config.dataset.caption_key)
         image = self.get_image(index=index)
         resized_image = self.resize_image(
             image=image,
