@@ -17,6 +17,7 @@ class TimestepEncoder(fl.Passthrough):
     ) -> None:
         super().__init__(
             fl.UseContext("diffusion", "timestep"),
+            fl.Converter(set_device=True),
             RangeEncoder(320, 1280, device=device, dtype=dtype),
             fl.SetContext("range_adapter", context_key),
         )
@@ -237,6 +238,7 @@ class SD1UNet(fl.Chain):
     def __init__(self, in_channels: int, device: Device | str | None = None, dtype: DType | None = None) -> None:
         self.in_channels = in_channels
         super().__init__(
+            fl.Converter(set_device=True),
             TimestepEncoder(device=device, dtype=dtype),
             DownBlocks(in_channels=in_channels, device=device, dtype=dtype),
             fl.Sum(

@@ -6,6 +6,7 @@ from refiners.fluxion.layers import (
     Attention,
     Chain,
     Conv2d,
+    Converter,
     Flatten,
     GeLU,
     GroupNorm,
@@ -54,6 +55,7 @@ class CrossAttentionBlock(Chain):
                     UseContext(context=self.context, key=context_key),
                     UseContext(context=self.context, key=context_key),
                 ),
+                Converter(set_device=True),
                 Attention(
                     embedding_dim=embedding_dim,
                     num_heads=num_heads,

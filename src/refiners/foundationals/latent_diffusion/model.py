@@ -6,6 +6,7 @@ from PIL import Image
 from torch import Tensor, device as Device, dtype as DType
 
 import refiners.fluxion.layers as fl
+from refiners.fluxion.utils import summarize_tensor
 from refiners.foundationals.latent_diffusion.auto_encoder import LatentDiffusionAutoencoder
 from refiners.foundationals.latent_diffusion.schedulers.scheduler import Scheduler
 
@@ -27,10 +28,11 @@ class LatentDiffusionModel(fl.Module, ABC):
         super().__init__()
         self.device: Device = device if isinstance(device, Device) else Device(device=device)
         self.dtype = dtype
-        self.unet = unet.to(device=self.device, dtype=self.dtype)
-        self.lda = lda.to(device=self.device, dtype=self.dtype)
-        self.clip_text_encoder = clip_text_encoder.to(device=self.device, dtype=self.dtype)
-        self.scheduler = scheduler.to(device=self.device, dtype=self.dtype)
+        self.unet = unet
+        self.lda = lda
+        self.clip_text_encoder = clip_text_encoder
+
+        self.scheduler = scheduler
 
     def set_num_inference_steps(self, num_inference_steps: int) -> None:
         initial_diffusion_rate = self.scheduler.initial_diffusion_rate
@@ -102,7 +104,7 @@ class LatentDiffusionModel(fl.Module, ABC):
             noise += self.compute_self_attention_guidance(
                 x=x, noise=unconditional_prediction, step=step, clip_text_embedding=clip_text_embedding, **kwargs
             )
-
+        print("x, noise", summarize_tensor(x), summarize_tensor(noise), self.scheduler.device)
         return self.scheduler(x, noise=noise, step=step)
 
     def structural_copy(self: TLatentDiffusionModel) -> TLatentDiffusionModel:

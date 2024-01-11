@@ -6,7 +6,7 @@ from typing import Any, Callable, Generic, Iterable, TypeVar, cast
 
 import numpy as np
 from loguru import logger
-from torch import Tensor, cuda, device as Device, get_rng_state, set_rng_state, stack
+from torch import Tensor, bfloat16, cuda, device as Device, dtype, float16, float32, get_rng_state, set_rng_state, stack
 from torch.autograd import backward
 from torch.nn import Parameter
 from torch.optim import Optimizer
@@ -250,13 +250,14 @@ class TrainingClock:
         return self.step % self.checkpointing_save_interval_steps == 0
 
 
-def compute_grad_norm(parameters: Iterable[Parameter]) -> float:
+def compute_grad_norm(parameters: Iterable[Parameter], device: Device) -> float:
     """
     Computes the gradient norm of the parameters of a given model similar to `clip_grad_norm_` returned value.
     """
     gradients: list[Tensor] = [p.grad.detach() for p in parameters if p.grad is not None]
     assert gradients, "The model has no gradients to compute the norm."
-    total_norm = stack(tensors=[gradient.norm() for gradient in gradients]).norm().item()  # type: ignore
+    device_gradients = [gradient.to(device) for gradient in gradients]
+    total_norm = stack(tensors=[gradient.norm() for gradient in device_gradients]).norm().item()  # type: ignore
     return total_norm  # type: ignore
 
 
@@ -301,6 +302,15 @@ class Trainer(Generic[ConfigType, Batch]):
         logger.info(f"Using device: {selected_device}")
         return selected_device
 
+    @cached_property
+    def dtype(self) -> dtype:
+        DTYPES = {"float32": float32, "bfloat16": bfloat16, "float16": float16}
+        dtype_key = self.config.training.dtype
+        assert dtype_key in DTYPES, f"Unknown dtype: {dtype_key}"
+        logger.info(f"Using dtype: {dtype_key}")
+
+        return DTYPES[dtype_key]
+
     @property
     def parameters(self) -> list[Parameter]:
         """Returns a list of all parameters in all models"""
@@ -329,7 +339,7 @@ class Trainer(Generic[ConfigType, Batch]):
     @property
     def total_gradient_norm(self) -> float:
         """Returns the total gradient norm for all learnable parameters in all models"""
-        return compute_grad_norm(parameters=self.parameters)
+        return compute_grad_norm(parameters=self.parameters, device=self.device)
 
     @cached_property
     def optimizer(self) -> Optimizer:
@@ -419,8 +429,18 @@ class Trainer(Generic[ConfigType, Batch]):
             model.load_from_safetensors(tensors_path=checkpoint)
         else:
             logger.info(f"No checkpoint found. Initializing model `{model_name}` from scratch.")
+
         model.requires_grad_(requires_grad=self.config.models[model_name].train)
-        model.to(self.device)
+
+        gpu_index = self.config.models[model_name].gpu_index
+        if gpu_index is None:
+            logger.info(f"Using device: {self.device} for model: {model_name}")
+            device = self.device
+        else:
+            logger.info(f"Using device: cuda:{gpu_index} for model: {model_name}")
+            device = Device(device=f"cuda:{gpu_index}")
+
+        model.to(device, dtype=self.dtype)
         model.zero_grad()
 
     def prepare_models(self) -> None:

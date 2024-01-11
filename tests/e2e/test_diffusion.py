@@ -355,14 +355,14 @@ def sd15_std(
 
 
 @pytest.fixture
-def sd15_std_float16(
+def sd15_std(
     text_encoder_weights: Path, lda_weights: Path, unet_weights_std: Path, test_device: torch.device
 ) -> StableDiffusion_1:
     if test_device.type == "cpu":
         warn("not running on CPU, skipping")
         pytest.skip()
 
-    sd15 = StableDiffusion_1(device=test_device, dtype=torch.float16)
+    sd15 = StableDiffusion_1(device=test_device)
 
     sd15.clip_text_encoder.load_from_safetensors(text_encoder_weights)
     sd15.lda.load_from_safetensors(lda_weights)

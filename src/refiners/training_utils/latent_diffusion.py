@@ -23,7 +23,12 @@ from refiners.foundationals.latent_diffusion.schedulers import DDPM
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
 from refiners.training_utils.callback import Callback
 from refiners.training_utils.config import BaseConfig
-from refiners.training_utils.huggingface_datasets import HuggingfaceDataset, HuggingfaceDatasetConfig, load_hf_dataset
+from refiners.training_utils.huggingface_datasets import (
+    DownloadManager,
+    HuggingfaceDataset,
+    HuggingfaceDatasetConfig,
+    load_hf_dataset,
+)
 from refiners.training_utils.trainer import Trainer
 from refiners.training_utils.wandb import WandbLoggable
 
@@ -67,11 +72,11 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
     def __init__(self, trainer: "LatentDiffusionTrainer[Any]") -> None:
         self.trainer = trainer
         self.config = trainer.config
-        self.device = self.trainer.device
         self.lda = self.trainer.lda
         self.text_encoder = self.trainer.text_encoder
         self.dataset = self.load_huggingface_dataset()
         self.process_image = self.build_image_processor()
+        self.download_manager = DownloadManager()
         logger.info(f"Loaded {len(self.dataset)} samples from dataset")
 
     def build_image_processor(self) -> Callable[[Image.Image], Image.Image]:
@@ -98,14 +103,21 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
     def process_caption(self, caption: str) -> str:
         return caption if random.random() > self.config.latent_diffusion.unconditional_sampling_probability else ""
 
-    def get_caption(self, index: int) -> str:
-        return self.dataset[index]["caption"]
+    def get_caption(self, index: int, caption_key: str) -> str:
+        return self.dataset[index][caption_key]
 
     def get_image(self, index: int) -> Image.Image:
-        return self.dataset[index]["image"]
+        if "image" in self.dataset[index]:
+            return self.dataset[index]["image"]
+        elif "url" in self.dataset[index]:
+            url = self.dataset[index]["url"]
+            filename = self.download_manager.download(url)
+            return Image.open(filename)
+        else:
+            raise RuntimeError(f"Dataset item at index [{index}] does not contain 'image' or 'url'")
 
     def __getitem__(self, index: int) -> TextEmbeddingLatentsBatch:
-        caption = self.get_caption(index=index)
+        caption = self.get_caption(index=index, caption_key=self.config.dataset.caption_key)
         image = self.get_image(index=index)
         resized_image = self.resize_image(
             image=image,
@@ -113,9 +125,11 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
             max_size=self.config.dataset.resize_image_max_size,
         )
         processed_image = self.process_image(resized_image)
-        latents = self.lda.encode_image(image=processed_image).to(device=self.device)
+
+        latents = self.lda.encode_image(image=processed_image)
+
         processed_caption = self.process_caption(caption=caption)
-        clip_text_embedding = self.text_encoder(processed_caption).to(device=self.device)
+        clip_text_embedding = self.text_encoder(processed_caption)
         return TextEmbeddingLatentsBatch(text_embeddings=clip_text_embedding, latents=latents)
 
     def collate_fn(self, batch: list[TextEmbeddingLatentsBatch]) -> TextEmbeddingLatentsBatch:
@@ -130,21 +144,26 @@ class TextEmbeddingLatentsDataset(Dataset[TextEmbeddingLatentsBatch]):
 class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
     @cached_property
     def unet(self) -> SD1UNet:
-        assert self.config.models["unet"] is not None, "The config must contain a unet entry."
-        return SD1UNet(in_channels=4, device=self.device).to(device=self.device)
+        return self.models["unet"]
 
     @cached_property
     def text_encoder(self) -> CLIPTextEncoderL:
-        assert self.config.models["text_encoder"] is not None, "The config must contain a text_encoder entry."
-        return CLIPTextEncoderL(device=self.device).to(device=self.device)
+        return self.models["text_encoder"]
 
     @cached_property
     def lda(self) -> SD1Autoencoder:
-        assert self.config.models["lda"] is not None, "The config must contain a lda entry."
-        return SD1Autoencoder(device=self.device).to(device=self.device)
+        return self.models["lda"]
 
     def load_models(self) -> dict[str, fl.Module]:
-        return {"unet": self.unet, "text_encoder": self.text_encoder, "lda": self.lda}
+        assert self.config.models["lda"] is not None, "The config must contain a lda entry."
+        lda = SD1Autoencoder()
+
+        assert self.config.models["text_encoder"] is not None, "The config must contain a text_encoder entry."
+        text_encoder = CLIPTextEncoderL()
+
+        assert self.config.models["unet"] is not None, "The config must contain a unet entry."
+        unet = SD1UNet(in_channels=4)
+        return {"unet": unet, "text_encoder": text_encoder, "lda": lda}
 
     def load_dataset(self) -> Dataset[TextEmbeddingLatentsBatch]:
         return TextEmbeddingLatentsDataset(trainer=self)
@@ -170,7 +189,9 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
         clip_text_embedding, latents = batch.text_embeddings, batch.latents
         timestep = self.sample_timestep()
         noise = self.sample_noise(size=latents.shape, dtype=latents.dtype)
-        noisy_latents = self.ddpm_scheduler.add_noise(x=latents, noise=noise, step=self.current_step)
+        noisy_latents = self.ddpm_scheduler.add_noise(
+            x=latents.to(self.ddpm_scheduler.device), noise=noise, step=self.current_step
+        )
         self.unet.set_timestep(timestep=timestep)
         self.unet.set_clip_text_embedding(clip_text_embedding=clip_text_embedding)
         prediction = self.unet(noisy_latents)
@@ -182,14 +203,17 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
             unet=self.unet,
             lda=self.lda,
             clip_text_encoder=self.text_encoder,
-            scheduler=DPMSolver(num_inference_steps=self.config.test_diffusion.num_inference_steps),
+            scheduler=DPMSolver(num_inference_steps=self.config.test_diffusion.num_inference_steps, device=self.device),
             device=self.device,
+            dtype=self.dtype,
         )
+
         prompts = self.config.test_diffusion.prompts
         num_images_per_prompt = self.config.test_diffusion.num_images_per_prompt
         if self.config.test_diffusion.use_short_prompts:
             prompts = [prompt.split(sep=",")[0] for prompt in prompts]
         images: dict[str, WandbLoggable] = {}
+
         for prompt in prompts:
             canvas_image: Image.Image = Image.new(mode="RGB", size=(512, 512 * num_images_per_prompt))
             for i in range(num_images_per_prompt):
@@ -202,7 +226,8 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
                         step=step,
                         clip_text_embedding=clip_text_embedding,
                     )
-                canvas_image.paste(sd.lda.decode_latents(x=x), box=(0, 512 * i))
+
+                canvas_image.paste(sd.lda.decode_latents(x=x.to(device=sd.lda.device)), box=(0, 512 * i))
             images[prompt] = canvas_image
         self.log(data=images)
 

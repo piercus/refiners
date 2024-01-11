@@ -59,6 +59,7 @@ class TrainingConfig(BaseModel):
     clip_grad_value: float | None = None
     evaluation_interval: TimeValue = {"number": 1, "unit": TimeUnit.ITERATION}
     evaluation_seed: int = 0
+    dtype: Literal["float32", "bfloat16", "float16"] = "float32"
 
     @validator("duration", "gradient_accumulation", "evaluation_interval", pre=True)
     def parse_field(cls, value: Any) -> TimeValue:
@@ -173,6 +174,7 @@ class OptimizerConfig(BaseModel):
 class ModelConfig(BaseModel):
     checkpoint: Path | None = None
     train: bool = True
+    gpu_index: int | None = None
     learning_rate: float | None = None  # TODO: Implement this
 
 
