@@ -36,6 +36,7 @@ class ColorPaletteConfig(BaseModel):
     num_attention_heads: int = 12
     num_layers: int = 12
     embedding_dim: int = 768
+    mode: str = "transformer"
     trigger_phrase: str = ""
     use_only_trigger_probability: float = 0.0
     max_colors: int
@@ -72,6 +73,7 @@ class ColorPaletteLatentDiffusionTrainer(
 
         encoder = ColorPaletteEncoder(
             max_colors=self.config.color_palette.max_colors,
+            mode=self.config.color_palette.mode,
             embedding_dim=self.config.color_palette.embedding_dim,
             num_layers=self.config.color_palette.num_layers,
             num_attention_heads=self.config.color_palette.num_attention_heads,
@@ -136,7 +138,9 @@ class ColorPaletteLatentDiffusionTrainer(
         image_tensor = cat([image_to_tensor(item.image, device=self.lda.device, dtype=self.lda.dtype) for item in batch])
         
         latents = self.lda.encode(image_tensor)
+        
         color_palettes = [item.color_palette for item in batch]
+        
         color_palette_embeddings = self.color_palette_encoder(
             color_palettes
         )
