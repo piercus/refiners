@@ -5,9 +5,8 @@ from refiners.fluxion.utils import load_from_safetensors
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
-from torch import Tensor, randn, tensor, cat
+from torch import Tensor, randn, tensor
 import numpy as np
-from refiners.fluxion.utils import image_to_tensor
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.color_palette import ColorPaletteEncoder, SD1ColorPaletteAdapter
@@ -36,19 +35,16 @@ class ColorPaletteConfig(BaseModel):
     num_attention_heads: int = 12
     num_layers: int = 12
     embedding_dim: int = 768
-    mode: str = "transformer"
     trigger_phrase: str = ""
     use_only_trigger_probability: float = 0.0
     max_colors: int
     without_caption_probability: float = 0.17
 
+
 class ColorPalettePromptConfig(BaseModel):
     text: str
     color_palette: ColorPalette
 
-class LatentPrompt(TypedDict):
-    text: str
-    color_palette_embedding: Tensor
 
 class TestColorPaletteConfig(TestDiffusionBaseConfig):
     prompts: list[ColorPalettePromptConfig]
@@ -73,7 +69,6 @@ class ColorPaletteLatentDiffusionTrainer(
 
         encoder = ColorPaletteEncoder(
             max_colors=self.config.color_palette.max_colors,
-            mode=self.config.color_palette.mode,
             embedding_dim=self.config.color_palette.embedding_dim,
             num_layers=self.config.color_palette.num_layers,
             num_attention_heads=self.config.color_palette.num_attention_heads,
@@ -115,7 +110,10 @@ class ColorPaletteLatentDiffusionTrainer(
 
     def load_dataset(self) -> ColorPaletteDataset:
         return ColorPaletteDataset(
-            config=self.config.dataset
+            config=self.config.dataset,
+            lda=self.lda,
+            text_encoder=self.text_encoder,
+            color_palette_encoder=self.color_palette_encoder
 		)
     
     @cached_property
@@ -131,18 +129,10 @@ class ColorPaletteLatentDiffusionTrainer(
         }
 
     def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
-        
-        texts = [item.text for item in batch]
-        text_embeddings = self.text_encoder(texts)
-        
-        image_tensor = cat([image_to_tensor(item.image, device=self.lda.device, dtype=self.lda.dtype) for item in batch])
-        
-        latents = self.lda.encode(image_tensor)
-        
-        color_palettes = [item.color_palette for item in batch]
-        
-        color_palette_embeddings = self.color_palette_encoder(
-            color_palettes
+        text_embeddings, latents, color_palette_embeddings = (
+            batch.text_embeddings,
+            batch.latents,
+            batch.color_palette_embeddings,
         )
 
         timestep = self.sample_timestep()
@@ -166,13 +156,7 @@ class ColorPaletteLatentDiffusionTrainer(
         self.sharding_manager.add_device_hooks(scheduler, scheduler.device)
 
         return StableDiffusion_1(unet=self.unet, lda=self.lda, clip_text_encoder=self.text_encoder, scheduler=scheduler)
-    
-    @scoped_seed(42)
-    def compute_deterministic_prompt_evaluation(
-        self, prompt: ColorPalettePromptConfig, num_images_per_prompt: int, img_size: int = 512
-    ) -> ImageAndPalette:
-        return self.compute_prompt_evaluation(prompt, num_images_per_prompt, img_size=img_size)
-        
+
     def compute_prompt_evaluation(
         self, prompt: ColorPalettePromptConfig, num_images_per_prompt: int, img_size: int = 512
     ) -> ImageAndPalette:
@@ -207,6 +191,7 @@ class ColorPaletteLatentDiffusionTrainer(
 
         return ImageAndPalette(image=canvas_image, palette=prompt.color_palette)
 
+    @scoped_seed(42)
     def compute_edge_case_evaluation(
         self, prompts: List[ColorPalettePromptConfig], num_images_per_prompt: int
     ) -> List[ImageAndPalette]:
@@ -215,7 +200,7 @@ class ColorPaletteLatentDiffusionTrainer(
         
         for prompt in prompts:
             image_name = f"edge_case/{prompt.text.replace(' ', '_')} : {str(prompt.color_palette)}"
-            image_and_palette = self.compute_deterministic_prompt_evaluation(prompt, num_images_per_prompt)
+            image_and_palette = self.compute_prompt_evaluation(prompt, num_images_per_prompt)
             images[image_name] = image_and_palette["image"]
             images_and_palettes.append(image_and_palette)
 
