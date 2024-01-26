@@ -5,8 +5,9 @@ from refiners.fluxion.utils import load_from_safetensors
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
-from torch import Tensor, randn, tensor
+from torch import Tensor, randn, tensor, cat
 import numpy as np
+from refiners.fluxion.utils import image_to_tensor
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.color_palette import ColorPaletteEncoder, SD1ColorPaletteAdapter
@@ -40,11 +41,13 @@ class ColorPaletteConfig(BaseModel):
     max_colors: int
     without_caption_probability: float = 0.17
 
-
 class ColorPalettePromptConfig(BaseModel):
     text: str
     color_palette: ColorPalette
 
+class LatentPrompt(TypedDict):
+    text: str
+    color_palette_embedding: Tensor
 
 class TestColorPaletteConfig(TestDiffusionBaseConfig):
     prompts: list[ColorPalettePromptConfig]
@@ -110,10 +113,7 @@ class ColorPaletteLatentDiffusionTrainer(
 
     def load_dataset(self) -> ColorPaletteDataset:
         return ColorPaletteDataset(
-            config=self.config.dataset,
-            lda=self.lda,
-            text_encoder=self.text_encoder,
-            color_palette_encoder=self.color_palette_encoder
+            config=self.config.dataset
 		)
     
     @cached_property
@@ -129,10 +129,16 @@ class ColorPaletteLatentDiffusionTrainer(
         }
 
     def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
-        text_embeddings, latents, color_palette_embeddings = (
-            batch.text_embeddings,
-            batch.latents,
-            batch.color_palette_embeddings,
+        
+        texts = [item.text for item in batch]
+        text_embeddings = self.text_encoder(texts)
+        
+        image_tensor = cat([image_to_tensor(item.image, device=self.lda.device, dtype=self.lda.dtype) for item in batch])
+        
+        latents = self.lda.encode(image_tensor)
+        color_palettes = [item.color_palette for item in batch]
+        color_palette_embeddings = self.color_palette_encoder(
+            color_palettes
         )
 
         timestep = self.sample_timestep()
@@ -156,7 +162,13 @@ class ColorPaletteLatentDiffusionTrainer(
         self.sharding_manager.add_device_hooks(scheduler, scheduler.device)
 
         return StableDiffusion_1(unet=self.unet, lda=self.lda, clip_text_encoder=self.text_encoder, scheduler=scheduler)
-
+    
+    @scoped_seed(42)
+    def compute_deterministic_prompt_evaluation(
+        self, prompt: ColorPalettePromptConfig, num_images_per_prompt: int, img_size: int = 512
+    ) -> ImageAndPalette:
+        return self.compute_prompt_evaluation(prompt, num_images_per_prompt, img_size=img_size)
+        
     def compute_prompt_evaluation(
         self, prompt: ColorPalettePromptConfig, num_images_per_prompt: int, img_size: int = 512
     ) -> ImageAndPalette:
@@ -173,7 +185,7 @@ class ColorPaletteLatentDiffusionTrainer(
 
             cfg_clip_text_embedding = sd.compute_clip_text_embedding(text=prompt.text).to(device=self.device)
             cfg_color_palette_embedding = self.color_palette_encoder.compute_color_palette_embedding(
-                tensor([prompt.color_palette])
+                prompt.color_palette
             )
 
             self.color_palette_adapter.set_color_palette_embedding(cfg_color_palette_embedding)
@@ -191,7 +203,6 @@ class ColorPaletteLatentDiffusionTrainer(
 
         return ImageAndPalette(image=canvas_image, palette=prompt.color_palette)
 
-    @scoped_seed(42)
     def compute_edge_case_evaluation(
         self, prompts: List[ColorPalettePromptConfig], num_images_per_prompt: int
     ) -> List[ImageAndPalette]:
@@ -200,7 +211,7 @@ class ColorPaletteLatentDiffusionTrainer(
         
         for prompt in prompts:
             image_name = f"edge_case/{prompt.text.replace(' ', '_')} : {str(prompt.color_palette)}"
-            image_and_palette = self.compute_prompt_evaluation(prompt, num_images_per_prompt)
+            image_and_palette = self.compute_deterministic_prompt_evaluation(prompt, num_images_per_prompt)
             images[image_name] = image_and_palette["image"]
             images_and_palettes.append(image_and_palette)
 
