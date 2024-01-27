@@ -1,4 +1,4 @@
-from typing import Any, List, TypeVar
+from typing import Any, List, TypeVar, Tuple
 
 from torch import cat, ones
 from jaxtyping import Float, Int
@@ -249,8 +249,8 @@ class ColorPaletteEncoder(fl.Chain):
     
     def compute_color_palette_embedding(
         self,
-        x: List[List[int]],
-        negative_color_palette: List[List[int]] = [],
+        x: List[Tuple[int, int, int]],
+        negative_color_palette: List[Tuple[int, int, int]] = [],
     ) -> Float[Tensor, "cfg_batch n_colors 3"]:
         conditional_embedding = self([x])
         negative_embedding = self([negative_color_palette])

@@ -5,9 +5,9 @@ from refiners.fluxion.utils import load_from_safetensors
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
-from torch import Tensor, randn, tensor
+from torch import Tensor, randn, tensor, cat
 import numpy as np
-
+from refiners.fluxion.utils import image_to_tensor
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.color_palette import ColorPaletteEncoder, SD1ColorPaletteAdapter
 from refiners.fluxion.utils import save_to_safetensors
@@ -129,10 +129,12 @@ class ColorPaletteLatentDiffusionTrainer(
         }
 
     def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
-        text_embeddings, latents, color_palette_embeddings = (
-            batch.text_embeddings,
-            batch.latents,
-            batch.color_palette_embeddings,
+        text_embeddings = self.text_encoder(batch.texts)
+
+        image_tensor = cat([image_to_tensor(image, device=self.lda.device, dtype=self.lda.dtype) for image in batch.images])
+        latents = self.lda.encode(image_tensor)
+        color_palette_embeddings = self.color_palette_encoder(
+            batch.color_palettes
         )
 
         timestep = self.sample_timestep()

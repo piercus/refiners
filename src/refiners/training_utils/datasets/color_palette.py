@@ -11,7 +11,7 @@ from refiners.foundationals.clip.text_encoder import CLIPTextEncoder
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
 from refiners.training_utils.datasets.latent_diffusion import TextEmbeddingLatentsBaseDataset, TextEmbeddingLatentsBatch
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
-
+from PIL import Image
 Color = Tuple[int, int, int]
 
 ColorPalette = List[Color]
@@ -20,6 +20,9 @@ ColorPalette = List[Color]
 @dataclass
 class TextEmbeddingColorPaletteLatentsBatch(TextEmbeddingLatentsBatch):
     color_palette_embeddings: Tensor
+    images: List[Image.Image]
+    texts: List[str]
+    color_palettes: List[ColorPalette]
 
 
 class SamplingByPalette(BaseModel):
@@ -53,11 +56,26 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
         )
 
     def __getitem__(self, index: int) -> TextEmbeddingColorPaletteLatentsBatch:
-        (latents, _) = self.get_processed_latents(index)
-        (clip_text_embedding, color_palette_embedding) = self.process_text_embedding_and_palette(index)
+        (latents, image) = self.get_processed_latents(index)
+        
+        caption = self.get_caption(index=index)
 
+        (processed_caption, conditionnal_flag) = self.process_caption(caption=caption)
+
+        if not conditionnal_flag:
+            clip_text_embedding = self.text_encoder(caption)
+            color_palette = []
+        else:
+            clip_text_embedding = self.text_encoder(processed_caption)
+            color_palette = self.get_color_palette(index)
+        
         return TextEmbeddingColorPaletteLatentsBatch(
-            text_embeddings=clip_text_embedding, latents=latents, color_palette_embeddings=color_palette_embedding
+            text_embeddings=clip_text_embedding, 
+            latents=latents, 
+            color_palette_embeddings=self.color_palette_encoder([color_palette]),
+            images=[image],
+            texts=[caption],
+            color_palettes=[color_palette]
         )
 
     def process_text_embedding_and_palette(self, index: int) -> tuple[Tensor, Tensor]:
@@ -91,5 +109,10 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
         latents = cat(tensors=[item.latents for item in batch])
         color_palette_embeddings = cat(tensors=[item.color_palette_embeddings for item in batch])
         return TextEmbeddingColorPaletteLatentsBatch(
-            text_embeddings=text_embeddings, latents=latents, color_palette_embeddings=color_palette_embeddings
+            text_embeddings=text_embeddings, 
+            latents=latents, 
+            color_palette_embeddings=color_palette_embeddings,
+            images=[image for item in batch for image in item.images],
+            texts=[text for item in batch for text in item.texts],
+            color_palettes=[color_palette for item in batch for color_palette in item.color_palettes],
         )
