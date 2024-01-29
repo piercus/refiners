@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, Literal, TypeVar, cast, List
+from typing import Any, Iterable, List, Literal, TypeVar, cast
 
 import torch
 from jaxtyping import Float
@@ -10,12 +10,12 @@ from safetensors import safe_open as _safe_open  # type: ignore
 from safetensors.torch import save_file as _save_file  # type: ignore
 from torch import (
     Tensor,
+    cat,
     device as Device,
     dtype as DType,
     manual_seed as _manual_seed,  # type: ignore
     no_grad as _no_grad,  # type: ignore
     norm as _norm,  # type: ignore
-    cat
 )
 from torch.nn.functional import conv2d, interpolate as _interpolate, pad as _pad  # type: ignore
 
@@ -113,8 +113,12 @@ def gaussian_blur(
 
     return tensor
 
-def images_to_tensor(images: List[Image.Image], device: Device | str | None = None, dtype: DType | None = None) -> Tensor:
+
+def images_to_tensor(
+    images: List[Image.Image], device: Device | str | None = None, dtype: DType | None = None
+) -> Tensor:
     return cat([image_to_tensor(image, device=device, dtype=dtype) for image in images])
+
 
 def image_to_tensor(image: Image.Image, device: Device | str | None = None, dtype: DType | None = None) -> Tensor:
     """
@@ -137,9 +141,11 @@ def image_to_tensor(image: Image.Image, device: Device | str | None = None, dtyp
 
     return image_tensor.unsqueeze(0)
 
+
 def tensor_to_images(tensor: Tensor) -> List[Image.Image]:
-    return [tensor_to_image(t) for t in tensor.split(1)] # type: ignore
-   
+    return [tensor_to_image(t) for t in tensor.split(1)]  # type: ignore
+
+
 def tensor_to_image(tensor: Tensor) -> Image.Image:
     """
     Convert a Tensor to a PIL Image.

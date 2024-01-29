@@ -89,7 +89,7 @@ class MultiDiffusion(Generic[T, D], ABC):
 
     def latent_to_image(self, x: Tensor) -> Image.Image:
         return self.ldm.lda.latent_to_image(x=x)
-    
+
     def latents_to_images(self, x: Tensor) -> list[Image.Image]:
         return self.ldm.lda.latents_to_images(x=x)
 

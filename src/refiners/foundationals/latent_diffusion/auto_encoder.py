@@ -217,7 +217,7 @@ class LatentDiffusionAutoencoder(Chain):
         x = images_to_tensor(images)
         x = 2 * x - 1
         return self.encode(x)
-    
+
     # backward-compatibility alias
     def decode_latents(self, x: Tensor) -> Image.Image:
         return self.latent_to_image(x)
