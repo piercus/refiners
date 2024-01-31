@@ -1181,7 +1181,7 @@ def test_diffusion_refonly(
 
     refonly_adapter = ReferenceOnlyControlAdapter(sd15.unet).inject()
 
-    guide = sd15.lda.image_to_latent(condition_image_refonly)
+    guide = sd15.lda.image_to_latents(condition_image_refonly)
     guide = torch.cat((guide, guide))
 
     manual_seed(2)
@@ -1223,7 +1223,7 @@ def test_diffusion_inpainting_refonly(
     sd15.set_inference_steps(30)
     sd15.set_inpainting_conditions(target_image_inpainting_refonly, mask_image_inpainting_refonly)
 
-    guide = sd15.lda.image_to_latent(scene_image_inpainting_refonly)
+    guide = sd15.lda.image_to_latents(scene_image_inpainting_refonly)
     guide = torch.cat((guide, guide))
 
     manual_seed(2)

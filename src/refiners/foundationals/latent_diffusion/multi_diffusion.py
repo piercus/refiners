@@ -85,10 +85,10 @@ class MultiDiffusion(Generic[T, D], ABC):
 
     # backward-compatibility alias
     def decode_latents(self, x: Tensor) -> Image.Image:
-        return self.latent_to_image(x=x)
+        return self.latents_to_image(x=x)
 
-    def latent_to_image(self, x: Tensor) -> Image.Image:
-        return self.ldm.lda.latent_to_image(x=x)
+    def latents_to_image(self, x: Tensor) -> Image.Image:
+        return self.ldm.lda.latents_to_image(x=x)
 
     def latents_to_images(self, x: Tensor) -> list[Image.Image]:
         return self.ldm.lda.latents_to_images(x=x)

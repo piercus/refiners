@@ -40,8 +40,8 @@ def sample_image(ref_path: Path) -> Image.Image:
 
 @no_grad()
 def test_encode_decode(encoder: LatentDiffusionAutoencoder, sample_image: Image.Image):
-    encoded = encoder.image_to_latent(sample_image)
-    decoded = encoder.latent_to_image(encoded)
+    encoded = encoder.image_to_latents(sample_image)
+    decoded = encoder.latents_to_image(encoded)
 
     assert decoded.mode == "RGB"
 
