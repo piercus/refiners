@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, List, Literal, TypeVar, cast
+from typing import Any, Iterable, Literal, TypeVar, cast
 
 import torch
 from jaxtyping import Float
@@ -115,7 +115,7 @@ def gaussian_blur(
 
 
 def images_to_tensor(
-    images: List[Image.Image], device: Device | str | None = None, dtype: DType | None = None
+    images: list[Image.Image], device: Device | str | None = None, dtype: DType | None = None
 ) -> Tensor:
     return cat([image_to_tensor(image, device=device, dtype=dtype) for image in images])
 
@@ -142,7 +142,7 @@ def image_to_tensor(image: Image.Image, device: Device | str | None = None, dtyp
     return image_tensor.unsqueeze(0)
 
 
-def tensor_to_images(tensor: Tensor) -> List[Image.Image]:
+def tensor_to_images(tensor: Tensor) -> list[Image.Image]:
     return [tensor_to_image(t) for t in tensor.split(1)]  # type: ignore
 
 
