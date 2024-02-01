@@ -50,6 +50,7 @@ def test_encode_decode_image(encoder: LatentDiffusionAutoencoder, sample_image: 
 
     ensure_similar_images(sample_image, decoded, min_psnr=20, min_ssim=0.9)
 
+
 @no_grad()
 def test_encode_decode_images(encoder: LatentDiffusionAutoencoder, sample_image: Image.Image):
     encoded = encoder.images_to_latents([sample_image, sample_image])
