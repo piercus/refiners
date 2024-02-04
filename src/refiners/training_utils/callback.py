@@ -167,6 +167,7 @@ class MonitorLoss(Callback["Trainer[BaseConfig, Any]"]):
     def on_optimizer_step_end(self, trainer: "Trainer[BaseConfig, Any]") -> None:
         avg_iteration_loss = sum(self.iteration_losses) / len(self.iteration_losses)
         trainer.log(data={"average_iteration_loss": avg_iteration_loss})
+        trainer.log(data={"learning_rate": trainer.optimizer.param_groups[0]["lr"]})        
         self.iteration_losses = []
 
     def on_epoch_end(self, trainer: "Trainer[BaseConfig, Any]") -> None:
@@ -174,8 +175,8 @@ class MonitorLoss(Callback["Trainer[BaseConfig, Any]"]):
         trainer.log(data={"average_epoch_loss": avg_epoch_loss, "epoch": trainer.clock.epoch})
         self.epoch_losses = []
 
-    def on_lr_scheduler_step_end(self, trainer: "Trainer[BaseConfig, Any]") -> None:
-        trainer.log(data={"learning_rate": trainer.optimizer.param_groups[0]["lr"]})
+    # def on_lr_scheduler_step_end(self, trainer: "Trainer[BaseConfig, Any]") -> None:
+    #     trainer.log(data={"learning_rate": trainer.optimizer.param_groups[0]["lr"]})
 
 
 class GradientNormClipping(Callback["Trainer[BaseConfig, Any]"]):
