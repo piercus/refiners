@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from PIL import Image
-from torch import Tensor, device as Device, dtype as DType
+from torch import Tensor, cat, device as Device, dtype as DType
 
 from refiners.fluxion.utils import image_to_tensor, interpolate
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
@@ -68,7 +68,7 @@ class StableDiffusion_1(LatentDiffusionModel):
             dtype=dtype,
         )
 
-    def compute_clip_text_embedding(self, text: str, negative_text: str = "") -> Tensor:
+    def compute_clip_text_embedding(self, text: str | list[str], negative_text: str | list[str] = "") -> Tensor:
         """Compute the CLIP text embedding associated with the given prompt and negative prompt.
 
         Args:
@@ -78,10 +78,19 @@ class StableDiffusion_1(LatentDiffusionModel):
         """
         conditional_embedding = self.clip_text_encoder(text)
         if text == negative_text:
-            return torch.cat(tensors=(conditional_embedding, conditional_embedding), dim=0)
+            negative_embedding = conditional_embedding
+        else:
+            if isinstance(text, list) and isinstance(negative_text, list):
+                assert len(text) == len(
+                    negative_text
+                ), "The length of the text list and negative_text should be the same"
 
-        negative_embedding = self.clip_text_encoder(negative_text or "")
-        return torch.cat(tensors=(negative_embedding, conditional_embedding), dim=0)
+            if isinstance(negative_text, str) and isinstance(text, list):
+                negative_text = [negative_text] * len(text)
+
+            negative_embedding = self.clip_text_encoder(negative_text)
+
+        return cat((negative_embedding, conditional_embedding))
 
     def set_unet_context(self, *, timestep: Tensor, clip_text_embedding: Tensor, **_: Tensor) -> None:
         """Set the various context parameters required by the U-Net model.
