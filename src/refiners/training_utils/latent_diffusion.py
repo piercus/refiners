@@ -41,6 +41,7 @@ class TestDiffusionConfig(BaseModel):
     use_short_prompts: bool = False
     prompts: list[str] = []
     num_images_per_prompt: int = 1
+    condition_scale: float = 7.5
 
 
 class FinetuneLatentDiffusionConfig(BaseConfig):
@@ -201,6 +202,7 @@ class LatentDiffusionTrainer(Trainer[ConfigType, TextEmbeddingLatentsBatch]):
                         x,
                         step=step,
                         clip_text_embedding=clip_text_embedding,
+                        condition_scale=self.config.test_diffusion.condition_scale,
                     )
                 canvas_image.paste(sd.lda.latents_to_image(x=x), box=(0, 512 * i))
             images[prompt] = canvas_image
