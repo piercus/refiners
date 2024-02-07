@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import cast
-from warnings import warn
 
 import pytest
 import torch
@@ -76,12 +75,8 @@ class MockTrainer(Trainer[MockConfig, MockBatch]):
 
 
 @pytest.fixture
-def mock_config(test_device: torch.device) -> MockConfig:
-    if not test_device.type == "cuda":
-        warn("only running on CUDA, skipping")
-        pytest.skip("Skipping test because test_device is not CUDA")
+def mock_config() -> MockConfig:
     config = MockConfig.load_from_toml(Path(__file__).parent / "mock_config.toml")
-    config.training.gpu_index = test_device.index
     return config
 
 
@@ -124,7 +119,6 @@ def training_clock() -> TrainingClock:
         gradient_accumulation={"number": 1, "unit": TimeUnit.EPOCH},
         evaluation_interval={"number": 1, "unit": TimeUnit.EPOCH},
         lr_scheduler_interval={"number": 1, "unit": TimeUnit.EPOCH},
-        checkpointing_save_interval={"number": 1, "unit": TimeUnit.EPOCH},
     )
 
 
@@ -158,10 +152,8 @@ def test_timer_functionality(training_clock: TrainingClock) -> None:
 def test_state_based_properties(training_clock: TrainingClock) -> None:
     training_clock.step = 5  # Halfway through the first epoch
     assert not training_clock.is_evaluation_step  # Assuming evaluation every epoch
-    assert not training_clock.is_checkpointing_step
     training_clock.step = 10  # End of the first epoch
     assert training_clock.is_evaluation_step
-    assert training_clock.is_checkpointing_step
 
 
 def test_mock_trainer_initialization(mock_config: MockConfig, mock_trainer: MockTrainer) -> None:
