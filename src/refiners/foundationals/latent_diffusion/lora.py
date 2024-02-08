@@ -131,7 +131,7 @@ class SDLoraManager:
         SDLoraManager.auto_attach(unet_loras, self.unet, exclude=exclude)
 
     def remove_loras(self, *names: str) -> None:
-        """Remove mulitple LoRAs from the target.
+        """Remove multiple LoRAs from the target.
 
         Args:
             names: The names of the LoRAs to remove.
@@ -179,7 +179,7 @@ class SDLoraManager:
         self.update_scales({name: scale})
 
     def update_scales(self, scales: dict[str, float], /) -> None:
-        """Update the scales of mulitple LoRAs.
+        """Update the scales of multiple LoRAs.
 
         Args:
             scales: The scales to update.
@@ -222,7 +222,19 @@ class SDLoraManager:
         return {name: self.get_scale(name) for name in self.names}
 
     @staticmethod
-    def pad(input: str, /, padding_length: int = 2) -> str:
+    def _pad(input: str, /, padding_length: int = 2) -> str:
+        """Make all numbers the same length so they sort correctly.
+
+        e.g. foo.3.bar -> foo.03.bar
+
+        Args:
+            input: The string to pad.
+            padding_length: The length to pad the numbers to.
+
+        Returns:
+            The padded string.
+        """
+
         new_split: list[str] = []
         for s in input.split("_"):
             if s.isdigit():
@@ -233,12 +245,34 @@ class SDLoraManager:
 
     @staticmethod
     def sort_keys(key: str, /) -> tuple[str, int]:
+        """Compute the score of a key, relatively to its suffix.
+
+        When used by [`sorted`][sorted], the keys will only be sorted "at the suffix level".
+        The idea is that sometimes closely related keys in the state dict are not in the
+        same order as the one we expect, for instance `q -> k -> v` or `in -> out`. This
+        attempts to fix that issue, not cases where distant layers are called in a different
+        order.
+
+        Args:
+            key: The key to sort.
+
+        Returns:
+            The padded prefix of the key.
+            A score depending on the key's suffix.
+        """
+
         # this dict might not be exhaustive
         suffix_scores = {"q": 1, "k": 2, "v": 3, "in": 3, "out": 4, "out0": 4, "out_0": 4}
         patterns = ["_{}", "_{}_lora"]
+
+        # apply patterns to the keys of suffix_scores
         key_char_order = {f.format(k): v for k, v in suffix_scores.items() for f in patterns}
+
+        # get the suffix and score for `key` (default: no suffix, highest score = 5)
         (sfx, score) = next(((k, v) for k, v in key_char_order.items() if key.endswith(k)), ("", 5))
-        return (SDLoraManager.pad(key.removesuffix(sfx)), score)
+
+        padded_key_prefix = SDLoraManager._pad(key.removesuffix(sfx))
+        return (padded_key_prefix, score)
 
     @staticmethod
     def auto_attach(
