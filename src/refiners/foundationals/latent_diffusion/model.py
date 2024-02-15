@@ -9,8 +9,6 @@ import refiners.fluxion.layers as fl
 from refiners.foundationals.latent_diffusion.auto_encoder import LatentDiffusionAutoencoder
 from refiners.foundationals.latent_diffusion.solvers import Solver
 
-T = TypeVar("T", bound="fl.Module")
-
 TLatentDiffusionModel = TypeVar("TLatentDiffusionModel", bound="LatentDiffusionModel")
 
 

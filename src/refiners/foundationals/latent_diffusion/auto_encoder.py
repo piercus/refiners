@@ -230,7 +230,7 @@ class Decoder(Chain):
                 f"Number of up-samples ({n_up_samples}) must be less than or equal to the number of resnet layers - 1 ({len(resnet_layers)})"
             )
         for _, layer in zip(range(n_up_samples), resnet_layers[1:]):
-            channels: int = layer[-1].out_channels
+            channels: int = layer.layer(-1, Resnet).out_channels
             layer.insert(-1, Usample(channels=channels, upsample_factor=2, device=device, dtype=dtype))
         super().__init__(
             Conv(

@@ -11,11 +11,11 @@ def lora() -> LinearLora:
 
 
 @pytest.fixture
-def conv_lora() -> Lora:
+def conv_lora() -> Conv2dLora:
     return Conv2dLora("conv_test", in_channels=16, out_channels=8, kernel_size=(3, 1), rank=4)
 
 
-def test_properties(lora: LinearLora, conv_lora: Lora) -> None:
+def test_properties(lora: LinearLora, conv_lora: Conv2dLora) -> None:
     assert lora.name == "test"
     assert lora.rank == lora.down.out_features == lora.up.in_features == 16
     assert lora.scale == 1.0

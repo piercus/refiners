@@ -14,8 +14,6 @@ __all__ = [
     "GradientNormClipping",
     "GradientValueClipping",
     "ClockCallback",
-    "GradientNormLogging",
-    "MonitorLoss",
 ]
 
 
@@ -154,6 +152,7 @@ class ClockCallback(Callback["Trainer[BaseConfig, Any]"]):
         logger.info("Evaluation ended.")
 
 
+<<<<<<< HEAD
 class MonitorLoss(Callback["Trainer[BaseConfig, Any]"]):
     def on_train_begin(self, trainer: "Trainer[BaseConfig, Any]") -> None:
         self.epoch_losses: list[float] = []
@@ -247,6 +246,8 @@ class MonitorTime(Callback["Trainer[BaseConfig, Any]"]):
         self.data.cancel()
 
 
+=======
+>>>>>>> main
 class GradientNormClipping(Callback["Trainer[BaseConfig, Any]"]):
     def on_backward_end(self, trainer: "Trainer[BaseConfig, Any]") -> None:
         clip_norm = trainer.config.training.clip_grad_norm
@@ -261,6 +262,7 @@ class GradientValueClipping(Callback["Trainer[BaseConfig, Any]"]):
         clip_value = trainer.config.training.clip_grad_value
         if clip_value is not None:
             clip_gradient_value(parameters=trainer.learnable_parameters, clip_value=clip_value)
+<<<<<<< HEAD
 
 
 class GradientNormLogging(Callback["Trainer[BaseConfig, Any]"]):
@@ -273,3 +275,5 @@ class GradientNormLayerLogging(Callback["Trainer[BaseConfig, Any]"]):
         named_gradient_norm = trainer.named_gradient_norm
         for layer_name, norm in named_gradient_norm:
             trainer.log(data={f"layer_grad_norm/{layer_name}": norm})
+=======
+>>>>>>> main

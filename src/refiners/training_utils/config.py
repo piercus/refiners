@@ -50,10 +50,15 @@ def parse_number_unit_field(value: str | int | dict[str, str | int]) -> TimeValu
 
 
 class TrainingConfig(BaseModel):
+    device: str = "cpu"
+    dtype: str = "float32"
     duration: TimeValue = {"number": 1, "unit": TimeUnit.ITERATION}
     seed: int = 0
+<<<<<<< HEAD
     gpu_index: int = 0
     dtype: str = "float32"
+=======
+>>>>>>> main
     batch_size: int = 1
     num_workers: int = 0
     gradient_accumulation: TimeValue = {"number": 1, "unit": TimeUnit.STEP}
@@ -207,6 +212,7 @@ class DropoutConfig(BaseModel):
             else:
                 apply_dropout(module=model, probability=self.dropout_probability)
 
+<<<<<<< HEAD
 class WandbConfig(BaseModel):
     mode: Literal["online", "offline", "disabled"] = "online"
     project: str
@@ -225,18 +231,22 @@ class CheckpointingConfig(BaseModel):
     @validator("save_interval", pre=True)
     def parse_field(cls, value: Any) -> TimeValue:
         return parse_number_unit_field(value)
+=======
+>>>>>>> main
 
 T = TypeVar("T", bound="BaseConfig")
 
 class BaseConfig(BaseModel):
     models: dict[str, ModelConfig]
-    wandb: WandbConfig
     training: TrainingConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
     dropout: DropoutConfig
+<<<<<<< HEAD
     checkpointing: CheckpointingConfig
     adapters: dict[str, AdapterConfig] = {}
+=======
+>>>>>>> main
 
     @classmethod
     def load_from_toml(cls: Type[T], toml_path: Path | str) -> T:

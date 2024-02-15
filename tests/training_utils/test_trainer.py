@@ -2,13 +2,11 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import cast
-from warnings import warn
 
 import pytest
 import torch
 from torch import Tensor, nn
 from torch.optim import SGD
-from torch.utils.data import Dataset
 
 from refiners.fluxion import layers as fl
 from refiners.fluxion.utils import norm
@@ -25,19 +23,6 @@ from refiners.training_utils.trainers.trainer import (
 class MockBatch:
     inputs: torch.Tensor
     targets: torch.Tensor
-
-class MockDataset(Dataset[MockBatch]):
-    def __len__(self):
-        return 20
-
-    def __getitem__(self, _: int) -> MockBatch:
-        return MockBatch(inputs=torch.randn(1, 10), targets=torch.randn(1, 10))
-
-    def collate_fn(self, batch: list[MockBatch]) -> MockBatch:
-        return MockBatch(
-            inputs=torch.cat([b.inputs for b in batch]),
-            targets=torch.cat([b.targets for b in batch]),
-        )
 
 
 class MockConfig(BaseConfig):
@@ -56,12 +41,22 @@ class MockModel(fl.Chain):
 class MockTrainer(Trainer[MockConfig, MockBatch]):
     step_counter: int = 0
 
+    @property
+    def dataset_length(self) -> int:
+        return 20
+
+    def get_item(self, index: int) -> MockBatch:
+        return MockBatch(inputs=torch.randn(1, 10), targets=torch.randn(1, 10))
+
+    def collate_fn(self, batch: list[MockBatch]) -> MockBatch:
+        return MockBatch(
+            inputs=torch.cat([b.inputs for b in batch]),
+            targets=torch.cat([b.targets for b in batch]),
+        )
+
     @cached_property
     def mock_model(self) -> MockModel:
         return MockModel()
-
-    def load_dataset(self) -> Dataset[MockBatch]:
-        return MockDataset()
 
     def load_models(self) -> dict[str, fl.Module]:
         return {"mock_model": self.mock_model}
@@ -74,18 +69,21 @@ class MockTrainer(Trainer[MockConfig, MockBatch]):
 
 
 @pytest.fixture
-def mock_config(test_device: torch.device) -> MockConfig:
-    if not test_device.type == "cuda":
-        warn("only running on CUDA, skipping")
-        pytest.skip("Skipping test because test_device is not CUDA")
+def mock_config() -> MockConfig:
     config = MockConfig.load_from_toml(Path(__file__).parent / "mock_config.toml")
-    config.training.gpu_index = test_device.index
     return config
 
 
 @pytest.fixture
 def mock_trainer(mock_config: MockConfig) -> MockTrainer:
     return MockTrainer(config=mock_config)
+
+
+@pytest.fixture
+def mock_trainer_short(mock_config: MockConfig) -> MockTrainer:
+    mock_config_short = mock_config.model_copy(deep=True)
+    mock_config_short.training.duration = {"number": 3, "unit": TimeUnit.STEP}
+    return MockTrainer(config=mock_config_short)
 
 
 @pytest.fixture
@@ -122,7 +120,6 @@ def training_clock() -> TrainingClock:
         gradient_accumulation={"number": 1, "unit": TimeUnit.EPOCH},
         evaluation_interval={"number": 1, "unit": TimeUnit.EPOCH},
         lr_scheduler_interval={"number": 1, "unit": TimeUnit.EPOCH},
-        checkpointing_save_interval={"number": 1, "unit": TimeUnit.EPOCH},
     )
 
 
@@ -156,10 +153,8 @@ def test_timer_functionality(training_clock: TrainingClock) -> None:
 def test_state_based_properties(training_clock: TrainingClock) -> None:
     training_clock.step = 5  # Halfway through the first epoch
     assert not training_clock.is_evaluation_step  # Assuming evaluation every epoch
-    assert not training_clock.is_checkpointing_step
     training_clock.step = 10  # End of the first epoch
     assert training_clock.is_evaluation_step
-    assert training_clock.is_checkpointing_step
 
 
 def test_mock_trainer_initialization(mock_config: MockConfig, mock_trainer: MockTrainer) -> None:
@@ -185,6 +180,18 @@ def test_training_cycle(mock_trainer: MockTrainer) -> None:
     assert clock.step == config.training.duration["number"] * clock.num_batches_per_epoch
 
     assert mock_trainer.step_counter == mock_trainer.clock.step
+
+
+def test_training_short_cycle(mock_trainer_short: MockTrainer) -> None:
+    clock = mock_trainer_short.clock
+    config = mock_trainer_short.config
+
+    assert mock_trainer_short.step_counter == 0
+    assert mock_trainer_short.clock.epoch == 0
+
+    mock_trainer_short.train()
+
+    assert clock.step == config.training.duration["number"]
 
 
 @pytest.fixture
