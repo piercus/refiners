@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from refiners.training_utils.datasets.latent_diffusion import TextEmbeddingLatentsBaseDataset
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
-from refiners.fluxion.adapters.color_palette import ColorPalette
+from refiners.fluxion.adapters.palette import Palette
 
 from pydantic import BaseModel
 
@@ -21,21 +21,21 @@ class ColorDatasetConfig(HuggingfaceDatasetConfig):
     grayscale: float = 0.0
 
 @dataclass
-class ColorPaletteDatasetItem:
-    color_palette: ColorPalette
+class PaletteDatasetItem:
+    palette: Palette
     text: str
     image: Image.Image
     conditional_flag: bool
     
 @dataclass
 class DatasetItem:
-    palettes: dict[str, ColorPalette]
+    palettes: dict[str, Palette]
     image: Image.Image
 
 from torchvision.transforms import Compose, RandomCrop, RandomHorizontalFlip, ColorJitter, RandomGrayscale# type: ignore
 from torch.nn import Module as TorchModule
 
-TextEmbeddingColorPaletteLatentsBatch = List[ColorPaletteDatasetItem]
+TextEmbeddingPaletteLatentsBatch = List[PaletteDatasetItem]
 
 DEFAULT_SAMPLING= {
     "palette_1": 1.0,
@@ -63,7 +63,7 @@ class SamplingByPalette:
             self.__setattr__(key, sampling[key])
 
 
-class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPaletteLatentsBatch]):
+class PaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingPaletteLatentsBatch]):
     def __init__(
         self,
         config: HuggingfaceDatasetConfig,
@@ -76,7 +76,7 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
             unconditional_sampling_probability=unconditional_sampling_probability,
         )
 
-    def __getitem__(self, index: int) -> TextEmbeddingColorPaletteLatentsBatch:
+    def __getitem__(self, index: int) -> TextEmbeddingPaletteLatentsBatch:
         
         item = self.hf_dataset[index]
         
@@ -93,8 +93,8 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
         (caption_processed, conditional_flag) = self.process_caption(caption)   
         
         return [
-            ColorPaletteDatasetItem(
-                color_palette=self.process_color_palette(item),
+            PaletteDatasetItem(
+                palette=self.process_palette(item),
                 text=caption_processed,
                 image=image,
                 conditional_flag=conditional_flag
@@ -115,9 +115,9 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
         palette_index = int(random.choices(choices, probabilities, k=1)[0])
         return palette_index
     
-    def process_color_palette(self, item: DatasetItem) -> ColorPalette:
+    def process_palette(self, item: DatasetItem) -> Palette:
         palette_color: list[Color] = item['palettes'][str(self.random_palette_size())]
-        palette: ColorPalette = [(color, 1.0/len(palette_color)) for color in palette_color]
+        palette: Palette = [(color, 1.0/len(palette_color)) for color in palette_color]
         return palette
 
     def build_image_processor(self) -> Callable[[Image.Image], Image.Image]:
@@ -135,14 +135,14 @@ class ColorPaletteDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingColorPale
             return lambda image: image
         return Compose(transforms)
 
-    def extract_color_palette(self, item: DatasetItem) -> ColorPalette:
+    def extract_palette(self, item: DatasetItem) -> Palette:
         
-        palette: ColorPalette = item.palettes[str(self.random_palette_size())]
+        palette: Palette = item.palettes[str(self.random_palette_size())]
         return palette 
        
-    def get_color_palette(self, index: int) -> ColorPalette:
+    def get_palette(self, index: int) -> Palette:
         item = self.hf_dataset[index]
-        return self.process_color_palette(item)
+        return self.process_palette(item)
 
-    def collate_fn(self, batch: list[TextEmbeddingColorPaletteLatentsBatch]) -> TextEmbeddingColorPaletteLatentsBatch:
+    def collate_fn(self, batch: list[TextEmbeddingPaletteLatentsBatch]) -> TextEmbeddingPaletteLatentsBatch:
         return [item for sublist in batch for item in sublist]

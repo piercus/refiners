@@ -12,7 +12,7 @@ from refiners.training_utils.trainers.abstract_color_trainer import AbstractColo
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
 from torch import Tensor
 from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
-from refiners.fluxion.adapters.color_palette import ColorPaletteExtractor
+from refiners.fluxion.adapters.palette import PaletteExtractor
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.histogram import (
@@ -24,8 +24,8 @@ from refiners.fluxion.adapters.histogram import (
 )
 from refiners.fluxion.utils import images_to_tensor, save_to_safetensors, tensor_to_image
 from refiners.training_utils.callback import Callback, GradientNormLayerLogging
-from refiners.training_utils.datasets.color_palette import ColorDatasetConfig, ColorPalette, ColorPaletteDataset, SamplingByPalette, TextEmbeddingColorPaletteLatentsBatch
-from refiners.training_utils.metrics.color_palette import batch_palette_metrics, BatchHistogramPrompt, BatchHistogramResults
+from refiners.training_utils.datasets.palette import ColorDatasetConfig, Palette, PaletteDataset, SamplingByPalette, TextEmbeddingPaletteLatentsBatch
+from refiners.training_utils.metrics.palette import batch_palette_metrics, BatchHistogramPrompt, BatchHistogramResults
 from refiners.training_utils.trainers.latent_diffusion import (
     FinetuneLatentDiffusionBaseConfig,
     TestDiffusionBaseConfig,
@@ -39,7 +39,7 @@ Histogram = Tensor
 class ImageAndHistogram(TypedDict):
     image: Image.Image
     histogram: Histogram
-    palette: ColorPalette
+    palette: Palette
 
 class ColorTrainingConfig(TrainingConfig):
     color_loss_weight: float = 1.0
@@ -63,22 +63,22 @@ class GridEvalHistogramDataset(GridEvalDataset[BatchHistogramPrompt]):
     
     def __init__(self, 
             db_indexes: list[int], 
-            hf_dataset: ColorPaletteDataset, 
+            hf_dataset: PaletteDataset, 
             source_prompts: list[str], 
             text_encoder: CLIPTextEncoderL, 
             histogram_extractor: HistogramExtractor,
-            color_palette_extractor: ColorPaletteExtractor
+            palette_extractor: PaletteExtractor
         ) -> None:
         super().__init__(db_indexes=db_indexes, hf_dataset=hf_dataset, source_prompts=source_prompts, text_encoder=text_encoder)
         self.histogram_extractor = histogram_extractor
-        self.color_palette_extractor = color_palette_extractor
+        self.palette_extractor = palette_extractor
         
-    def process_item(self, items: TextEmbeddingColorPaletteLatentsBatch) -> dict[str, Any]:
+    def process_item(self, items: TextEmbeddingPaletteLatentsBatch) -> dict[str, Any]:
         if len(items) != 1:
             raise ValueError("The items must have length 1.")
         
         histograms = self.histogram_extractor.images_to_histograms([item.image for item in items])
-        source_palettes = [self.color_palette_extractor(item.image, size=len(item.color_palette)) for item in items]
+        source_palettes = [self.palette_extractor(item.image, size=len(item.palette)) for item in items]
 
         return {
             "source_palettes": source_palettes,
@@ -98,15 +98,15 @@ class HistogramLatentDiffusionTrainer(
             source_prompts=self.config.evaluation.prompts,
             text_encoder=self.text_encoder,
             histogram_extractor=self.histogram_extractor,
-            color_palette_extractor=self.color_palette_extractor
+            palette_extractor=self.palette_extractor
         )
     
     @cached_property
-    def color_palette_extractor(self) -> ColorPaletteExtractor:
-        return ColorPaletteExtractor(size = 8)
+    def palette_extractor(self) -> PaletteExtractor:
+        return PaletteExtractor(size = 8)
     
-    def load_dataset(self) -> ColorPaletteDataset:
-        return ColorPaletteDataset(
+    def load_dataset(self) -> PaletteDataset:
+        return PaletteDataset(
             config=self.config.dataset,
             # use only palette 8 here
             sampling_by_palette = SamplingByPalette(
@@ -216,7 +216,7 @@ class HistogramLatentDiffusionTrainer(
             db_indexes= batch.db_indexes,
             source_images= batch.source_images
         )
-    def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
+    def compute_loss(self, batch: TextEmbeddingPaletteLatentsBatch) -> Tensor:
         
         texts = [item.text for item in batch]
         text_embeddings = self.text_encoder(texts)
@@ -317,14 +317,14 @@ class HistogramLatentDiffusionTrainer(
             join_canvas_image.paste(source_images[i].resize((width//2, height//2)), box=(0, height *i))
             
             source_image_palette = self.draw_palette(
-                self.color_palette_extractor.from_histogram(source_histograms[i], color_bits= self.config.histogram_auto_encoder.color_bits, size=len(batch.source_palettes[i])),
+                self.palette_extractor.from_histogram(source_histograms[i], color_bits= self.config.histogram_auto_encoder.color_bits, size=len(batch.source_palettes[i])),
                 width//2,
                 height//16
             )
             join_canvas_image.paste(source_image_palette, box=(0, height *i + height//2))
             
             res_image_palette = self.draw_palette(
-                self.color_palette_extractor.from_histogram(results_histograms[i], color_bits= self.config.histogram_auto_encoder.color_bits, size=len(batch.source_palettes[i])),
+                self.palette_extractor.from_histogram(results_histograms[i], color_bits= self.config.histogram_auto_encoder.color_bits, size=len(batch.source_palettes[i])),
                 width//2,
                 height//16
             )

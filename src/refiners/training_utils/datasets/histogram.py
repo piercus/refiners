@@ -6,7 +6,7 @@ from refiners.fluxion.adapters.histogram import HistogramEncoder, HistogramExtra
 from refiners.fluxion.utils import image_to_tensor
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoder
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
-from refiners.training_utils.datasets.color_palette import ColorPalette
+from refiners.training_utils.datasets.palette import Palette
 from refiners.training_utils.datasets.latent_diffusion import TextEmbeddingLatentsBaseDataset, TextEmbeddingLatentsBatch
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
 
@@ -48,7 +48,7 @@ class HistogramLatentsDataset(TextEmbeddingLatentsBaseDataset[TextEmbeddingHisto
             text_embeddings=clip_text_embedding, latents=latents, histogram_embeddings=histogram_embedding
         )
 
-    def get_palette(self, index: int, palette_index: int = 8) -> ColorPalette:
+    def get_palette(self, index: int, palette_index: int = 8) -> Palette:
         item = self.hf_dataset[index]
         return item[f"palette_{palette_index}"]
 

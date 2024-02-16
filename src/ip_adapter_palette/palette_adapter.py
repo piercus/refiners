@@ -21,9 +21,9 @@ TSDNet = TypeVar("TSDNet", bound="SD1UNet | SDXLUNet")
 Color = tuple[int, int, int]
 ColorWeight = float
 
-ColorPaletteCluster = tuple[Color, ColorWeight]
+PaletteCluster = tuple[Color, ColorWeight]
 
-ColorPalette = list[ColorPaletteCluster]
+Palette = list[PaletteCluster]
 
 class PalettesTokenizer(fl.Module):
     _lda: list[SD1Autoencoder]
@@ -45,11 +45,11 @@ class PalettesTokenizer(fl.Module):
         super().__init__()
         self.max_colors = max_colors
     
-    def forward(self, palettes: List[ColorPalette]) -> Float[Tensor, "*batch max_colors 5"]:
+    def forward(self, palettes: List[Palette]) -> Float[Tensor, "*batch max_colors 5"]:
         tensors = [self._forward(palette) for palette in palettes]
         return cat(tensors, dim=0)
 
-    def _forward(self, palette: ColorPalette) -> Float[Tensor, "*batch max_colors 5"]:
+    def _forward(self, palette: Palette) -> Float[Tensor, "*batch max_colors 5"]:
         
         if len(palette) == 0:
             tensor_source = zeros(1, 0, 4)
@@ -120,7 +120,7 @@ class ColorEncoder(fl.Chain):
             fl.LayerNorm(normalized_shape=embedding_dim, eps=eps, device=device, dtype=dtype),
         )
 
-class ColorPaletteTransformerEncoder(fl.Chain):
+class PaletteTransformerEncoder(fl.Chain):
 
     def __init__(
         self,
@@ -157,7 +157,7 @@ class ColorPaletteTransformerEncoder(fl.Chain):
             )
         )
 
-class ColorPaletteMLPEncoder(fl.Chain):
+class PaletteMLPEncoder(fl.Chain):
 
     def __init__(
         self,
@@ -200,7 +200,7 @@ class ColorPaletteMLPEncoder(fl.Chain):
 from sklearn.cluster import KMeans # type: ignore
 import numpy as np
 from PIL import Image
-class ColorPaletteExtractor:
+class PaletteExtractor:
     def __init__(
         self,
         size: int = 8,
@@ -209,7 +209,7 @@ class ColorPaletteExtractor:
         self.size = size
         self.weighted_palette = weighted_palette
 
-    def __call__(self, image: Image.Image, size: int | None = None) -> ColorPalette:
+    def __call__(self, image: Image.Image, size: int | None = None) -> Palette:
         if size is None:
             size = self.size
         
@@ -219,16 +219,16 @@ class ColorPaletteExtractor:
         image_np = np.array(image)
         pixels = image_np.reshape(-1, 3)
         return self.from_pixels(pixels, size)
-    def from_pixels(self, pixels: np.ndarray, size: int | None = None) -> ColorPalette:
+    def from_pixels(self, pixels: np.ndarray, size: int | None = None) -> Palette:
         kmeans = KMeans(n_clusters=size).fit(pixels) # type: ignore 
         counts = np.unique(kmeans.labels_, return_counts=True)[1] # type: ignore
-        palette : ColorPalette = []
+        palette : Palette = []
         total = pixels.shape[0]
         for i in range(0, size):
             center_float : tuple[float, float, float] = kmeans.cluster_centers_[i] # type: ignore
             center : Color = tuple(center_float.astype(int)) # type: ignore
             count = float(counts[i].item())
-            color_cluster: ColorPaletteCluster = (
+            color_cluster: PaletteCluster = (
                 center,
                 count / total if self.weighted_palette else 1.0 / size
             )
@@ -236,7 +236,7 @@ class ColorPaletteExtractor:
         sorted_palette = sorted(palette, key=lambda x: x[1], reverse=True)
         return sorted_palette
 
-    def from_histogram(self, histogram: Tensor, color_bits: int, size: int | None = None, num: int = 1) -> ColorPalette:
+    def from_histogram(self, histogram: Tensor, color_bits: int, size: int | None = None, num: int = 1) -> Palette:
         if histogram.dim() != 4:
             raise Exception('histogram must be 4 dimensions')
         cube_size = 2 ** color_bits
@@ -251,11 +251,11 @@ class ColorPaletteExtractor:
             
         return self.from_pixels(np.array(pixels), size)
     
-    def distance(self, a: ColorPalette, b: ColorPalette) -> float:
+    def distance(self, a: Palette, b: Palette) -> float:
         #TO DO
         raise NotImplementedError
 
-class ColorPaletteEncoder(fl.Chain):
+class PaletteEncoder(fl.Chain):
     def __init__(
         self,
         lda: SD1Autoencoder = SD1Autoencoder(),
@@ -278,7 +278,7 @@ class ColorPaletteEncoder(fl.Chain):
         if num_layers == 0:
             encoder_body = fl.Identity()
         elif mode == 'transformer':
-            encoder_body = ColorPaletteTransformerEncoder(
+            encoder_body = PaletteTransformerEncoder(
                 embedding_dim=embedding_dim,
                 max_colors=max_colors,
                 num_layers=num_layers,
@@ -289,7 +289,7 @@ class ColorPaletteEncoder(fl.Chain):
                 dtype=dtype
             )
         elif mode == 'mlp':
-            encoder_body = ColorPaletteMLPEncoder(
+            encoder_body = PaletteMLPEncoder(
                 embedding_dim=embedding_dim,
                 num_layers=num_layers,
                 feedforward_dim=feedforward_dim,
@@ -338,20 +338,20 @@ class ColorPaletteEncoder(fl.Chain):
             fl.LayerNorm(normalized_shape=embedding_dim, eps=layer_norm_eps, device=device, dtype=dtype),
         )
     
-    def compute_color_palette_embedding(
+    def compute_palette_embedding(
         self,
-        x: List[ColorPalette] = [],
-        negative_color_palette: List[ColorPalette] | None = None,
+        x: List[Palette] = [],
+        negative_palette: List[Palette] | None = None,
     ) -> Float[Tensor, "cfg_batch n_colors 3"]:
         
         conditional_embedding = self(x)
-        if negative_color_palette is None:
-            negative_color_palette = [[]]*len(x)
+        if negative_palette is None:
+            negative_palette = [[]]*len(x)
         
-        if len(negative_color_palette) != len(x):
-            raise ValueError("The negative_color_palette must have the same length as the input color palette")
+        if len(negative_palette) != len(x):
+            raise ValueError("The negative_palette must have the same length as the input color palette")
         
-        negative_embedding = self(negative_color_palette)
+        negative_embedding = self(negative_palette)
         return cat(tensors=(negative_embedding, conditional_embedding), dim=0)
     
 class PaletteCrossAttention(fl.Chain):
@@ -450,14 +450,14 @@ class PaletteCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
         return [self.image_key_projection.weight, self.image_value_projection.weight]
 
 
-class SD1ColorPaletteAdapter(fl.Chain, Adapter[TSDNet]):
+class SD1PaletteAdapter(fl.Chain, Adapter[TSDNet]):
     # Prevent PyTorch module registration
-    _color_palette_encoder: list[ColorPaletteEncoder]
+    _palette_encoder: list[PaletteEncoder]
 
     def __init__(
         self,
         target: TSDNet,
-        color_palette_encoder: ColorPaletteEncoder,
+        palette_encoder: PaletteEncoder,
         scale: float = 1.0,
         device: Device | str | None = None,
         dtype: DType | None = None,
@@ -466,20 +466,20 @@ class SD1ColorPaletteAdapter(fl.Chain, Adapter[TSDNet]):
         with self.setup_adapter(target):
             super().__init__(target)
 
-        self._color_palette_encoder = [color_palette_encoder]
+        self._palette_encoder = [palette_encoder]
 
         self.sub_adapters: list[PaletteCrossAttentionAdapter] = [
             PaletteCrossAttentionAdapter(
-                target=cross_attn, scale=scale, embedding_dim=color_palette_encoder.embedding_dim
+                target=cross_attn, scale=scale, embedding_dim=palette_encoder.embedding_dim
             )
             for cross_attn in filter(lambda attn: type(attn) != fl.SelfAttention, target.layers(fl.Attention))
         ]
         
         if weights is not None:
-            color_palette_state_dict: dict[str, Tensor] = {
-                k.removeprefix("color_palette_encoder."): v for k, v in weights.items() if k.startswith("color_palette_encoder.")
+            palette_state_dict: dict[str, Tensor] = {
+                k.removeprefix("palette_encoder."): v for k, v in weights.items() if k.startswith("palette_encoder.")
             }
-            self._color_palette_encoder[0].load_state_dict(color_palette_state_dict)
+            self._palette_encoder[0].load_state_dict(palette_state_dict)
             
             for i, cross_attn in enumerate(self.sub_adapters):
                 # cross_attention_weights: list[Tensor] = []
@@ -488,11 +488,11 @@ class SD1ColorPaletteAdapter(fl.Chain, Adapter[TSDNet]):
                 index = i*2
                 index2 = index + 1
                 cross_attn.load_weights(
-                    weights[f"color_palette_adapter.{index:03d}"],
-                    weights[f"color_palette_adapter.{index2:03d}"],
+                    weights[f"palette_adapter.{index:03d}"],
+                    weights[f"palette_adapter.{index2:03d}"],
                 )
                 
-                # prefix = f"color_palette_adapter.{i:03d}."
+                # prefix = f"palette_adapter.{i:03d}."
                 # for k, v in weights.items():
                 #     if not k.startswith(prefix):
                 #         continue
@@ -513,7 +513,7 @@ class SD1ColorPaletteAdapter(fl.Chain, Adapter[TSDNet]):
             for w in weight:
                 init.zeros_(w)
 
-    def inject(self, parent: fl.Chain | None = None) -> "SD1ColorPaletteAdapter[Any]":
+    def inject(self, parent: fl.Chain | None = None) -> "SD1PaletteAdapter[Any]":
         for adapter in self.sub_adapters:
             adapter.inject()
         return super().inject(parent)
@@ -527,9 +527,9 @@ class SD1ColorPaletteAdapter(fl.Chain, Adapter[TSDNet]):
         for cross_attn in self.sub_adapters:
             cross_attn.scale = scale
 
-    def set_color_palette_embedding(self, color_palette_embedding: Tensor) -> None:
-        self.set_context("ip_adapter", {"palette_embedding": color_palette_embedding})
+    def set_palette_embedding(self, palette_embedding: Tensor) -> None:
+        self.set_context("ip_adapter", {"palette_embedding": palette_embedding})
 
     @property
-    def color_palette_encoder(self) -> ColorPaletteEncoder:
-        return self._color_palette_encoder[0]
+    def palette_encoder(self) -> PaletteEncoder:
+        return self._palette_encoder[0]

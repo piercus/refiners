@@ -3,10 +3,10 @@ from typing import Generic, TypeVar, Type, Any
 
 from loguru import logger
 from refiners.training_utils.wandb import WandbLoggable
-from refiners.training_utils.metrics.color_palette import AbstractColorPrompt, AbstractColorResults
+from refiners.training_utils.metrics.palette import AbstractColorPrompt, AbstractColorResults
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
 from torch import Tensor, randn, tensor
-from refiners.fluxion.adapters.color_palette import ColorPaletteExtractor, ColorPalette
+from refiners.fluxion.adapters.palette import PaletteExtractor, Palette
 import numpy as np
 from torch.utils.data import DataLoader
 
@@ -20,13 +20,13 @@ from refiners.foundationals.latent_diffusion import (
     StableDiffusion_1,
 )
 
-from refiners.training_utils.datasets.color_palette import ColorDatasetConfig, ColorPaletteDataset, TextEmbeddingColorPaletteLatentsBatch
+from refiners.training_utils.datasets.palette import ColorDatasetConfig, PaletteDataset, TextEmbeddingPaletteLatentsBatch
 from refiners.training_utils.trainers.latent_diffusion import (
     FinetuneLatentDiffusionBaseConfig,
     LatentDiffusionBaseTrainer,
     TestDiffusionBaseConfig,
 )
-from refiners.training_utils.datasets.color_palette import ColorPaletteDataset
+from refiners.training_utils.datasets.palette import PaletteDataset
 from refiners.training_utils.trainers.trainer import scoped_seed
 # def hash_tensor(image: Tensor) -> str:
 #     str2 = ""
@@ -58,7 +58,7 @@ class GridEvalDataset(Generic[PromptType], Dataset[PromptType]):
     
     __prompt_type__ : Type[PromptType]
     
-    def __init__(self, db_indexes: list[int], hf_dataset: ColorPaletteDataset, source_prompts: list[str], text_encoder: CLIPTextEncoderL):
+    def __init__(self, db_indexes: list[int], hf_dataset: PaletteDataset, source_prompts: list[str], text_encoder: CLIPTextEncoderL):
         self.db_indexes = db_indexes
         self.hf_dataset = hf_dataset
         self.source_prompts = source_prompts
@@ -84,20 +84,20 @@ class GridEvalDataset(Generic[PromptType], Dataset[PromptType]):
             **args
         )
         
-    def process_item(self, items: TextEmbeddingColorPaletteLatentsBatch) -> dict[str, Any]:
+    def process_item(self, items: TextEmbeddingPaletteLatentsBatch) -> dict[str, Any]:
         ...
 
 class AbstractColorTrainer(
     Generic[PromptType, ResultType, ConfigType],
-    LatentDiffusionBaseTrainer[ConfigType, TextEmbeddingColorPaletteLatentsBatch],
+    LatentDiffusionBaseTrainer[ConfigType, TextEmbeddingPaletteLatentsBatch],
 ):
-    def load_dataset(self) -> ColorPaletteDataset:
-        return ColorPaletteDataset(
+    def load_dataset(self) -> PaletteDataset:
+        return PaletteDataset(
             config=self.config.dataset
         )
 
     @cached_property
-    def dataset(self) -> ColorPaletteDataset:  # type: ignore
+    def dataset(self) -> PaletteDataset:  # type: ignore
         return self.load_dataset() 
     @cached_property
     def sd(self) -> StableDiffusion_1:
@@ -129,13 +129,13 @@ class AbstractColorTrainer(
         return self.text_encoder([""])
     
     @cached_property
-    def color_palette_extractor(self) -> ColorPaletteExtractor:
-        return ColorPaletteExtractor(
-            size=self.config.color_palette.max_colors,
-            weighted_palette=self.config.color_palette.weighted_palette
+    def palette_extractor(self) -> PaletteExtractor:
+        return PaletteExtractor(
+            size=self.config.palette.max_colors,
+            weighted_palette=self.config.palette.weighted_palette
         )
     
-    def draw_palette(self, palette: ColorPalette, width: int, height: int) -> Image.Image:
+    def draw_palette(self, palette: Palette, width: int, height: int) -> Image.Image:
         palette_img = Image.new(mode="RGB", size=(width, height))
         
         # sort the palette by weight
@@ -262,8 +262,8 @@ class AbstractColorTrainer(
         )
     
     @cached_property
-    def eval_dataset(self) -> ColorPaletteDataset:
-        return ColorPaletteDataset(
+    def eval_dataset(self) -> PaletteDataset:
+        return PaletteDataset(
             config=self.config.eval_dataset
         )
         

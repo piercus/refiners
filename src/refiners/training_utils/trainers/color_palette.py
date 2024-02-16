@@ -6,30 +6,30 @@ from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 from refiners.training_utils.trainers.abstract_color_trainer import AbstractColorTrainer, ColorTrainerEvaluationConfig
-from refiners.training_utils.metrics.color_palette import BatchHistogramPrompt
+from refiners.training_utils.metrics.palette import BatchHistogramPrompt
 from refiners.training_utils.trainers.abstract_color_trainer import GridEvalDataset
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
-from refiners.training_utils.datasets.color_palette import ColorPaletteDataset
+from refiners.training_utils.datasets.palette import PaletteDataset
 from torch import Tensor
 import numpy as np
 
 import refiners.fluxion.layers as fl
-from refiners.fluxion.adapters.color_palette import Color, ColorPaletteEncoder, SD1ColorPaletteAdapter, ColorPaletteExtractor
+from refiners.fluxion.adapters.palette import Color, PaletteEncoder, SD1PaletteAdapter, PaletteExtractor
 from refiners.fluxion.utils import save_to_safetensors
 from refiners.foundationals.latent_diffusion import (
     SD1UNet
 )
 from refiners.training_utils.callback import Callback
-from refiners.training_utils.metrics.color_palette import BatchHistogramPrompt, BatchHistogramResults, ImageAndPalette, batch_image_palette_metrics
+from refiners.training_utils.metrics.palette import BatchHistogramPrompt, BatchHistogramResults, ImageAndPalette, batch_image_palette_metrics
 from refiners.training_utils.trainers.histogram import GridEvalHistogramDataset
 from refiners.training_utils.trainers.latent_diffusion import (
     FinetuneLatentDiffusionBaseConfig,
 )
-from refiners.training_utils.datasets.color_palette import ColorDatasetConfig, ColorPalette, TextEmbeddingColorPaletteLatentsBatch
+from refiners.training_utils.datasets.palette import ColorDatasetConfig, Palette, TextEmbeddingPaletteLatentsBatch
 from refiners.training_utils.callback import GradientNormLayerLogging
 from refiners.training_utils.wandb import WandbLoggable
 
-class ColorPaletteConfig(BaseModel):
+class PaletteConfig(BaseModel):
     feedforward_dim: int = 3072
     num_attention_heads: int = 12
     num_layers: int = 12
@@ -41,69 +41,69 @@ class ColorPaletteConfig(BaseModel):
     weighted_palette: bool = False
     without_caption_probability: float = 0.17
 
-class ColorPalettePromptConfig(BaseModel):
+class PalettePromptConfig(BaseModel):
     text: str
-    color_palette: ColorPalette
+    palette: Palette
 
 class LatentPrompt(TypedDict):
     text: str
-    color_palette_embedding: Tensor
+    palette_embedding: Tensor
 
-class ColorPaletteLatentDiffusionConfig(FinetuneLatentDiffusionBaseConfig):
-    color_palette: ColorPaletteConfig
+class PaletteLatentDiffusionConfig(FinetuneLatentDiffusionBaseConfig):
+    palette: PaletteConfig
     evaluation: ColorTrainerEvaluationConfig
     dataset: ColorDatasetConfig
     eval_dataset: ColorDatasetConfig
 
 class GridEvalPaletteDataset(GridEvalDataset[BatchHistogramPrompt]):
     __prompt_type__ = BatchHistogramPrompt
-    def __init__(self, db_indexes: list[int], hf_dataset: ColorPaletteDataset, source_prompts: list[str], text_encoder: CLIPTextEncoderL, color_palette_extractor: ColorPaletteExtractor):
+    def __init__(self, db_indexes: list[int], hf_dataset: PaletteDataset, source_prompts: list[str], text_encoder: CLIPTextEncoderL, palette_extractor: PaletteExtractor):
         super().__init__(db_indexes, hf_dataset, source_prompts, text_encoder)
-        self.color_palette_extractor = color_palette_extractor
-    def process_item(self, items: TextEmbeddingColorPaletteLatentsBatch) -> dict[str, Any]:
+        self.palette_extractor = palette_extractor
+    def process_item(self, items: TextEmbeddingPaletteLatentsBatch) -> dict[str, Any]:
         if len(items) != 1:
             raise ValueError("The items must have length 1.")
 
-        source_palettes = [self.color_palette_extractor(item.image, size=len(item.color_palette)) for item in items]
+        source_palettes = [self.palette_extractor(item.image, size=len(item.palette)) for item in items]
         return {
             "source_palettes": source_palettes
         }
 
-class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramPrompt, BatchHistogramResults, ColorPaletteLatentDiffusionConfig]):
+class PaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramPrompt, BatchHistogramResults, PaletteLatentDiffusionConfig]):
     @cached_property
-    def color_palette_encoder(self) -> ColorPaletteEncoder:
+    def palette_encoder(self) -> PaletteEncoder:
         assert (
-            self.config.models["color_palette_encoder"] is not None
-        ), "The config must contain a color_palette_encoder entry."
+            self.config.models["palette_encoder"] is not None
+        ), "The config must contain a palette_encoder entry."
 
-        encoder = ColorPaletteEncoder(
-            max_colors=self.config.color_palette.max_colors,
-            embedding_dim=self.config.color_palette.embedding_dim,
-            num_layers=self.config.color_palette.num_layers,
-            mode=self.config.color_palette.mode,
-            weighted_palette=self.config.color_palette.weighted_palette,
-            num_attention_heads=self.config.color_palette.num_attention_heads,
-            feedforward_dim=self.config.color_palette.feedforward_dim,
+        encoder = PaletteEncoder(
+            max_colors=self.config.palette.max_colors,
+            embedding_dim=self.config.palette.embedding_dim,
+            num_layers=self.config.palette.num_layers,
+            mode=self.config.palette.mode,
+            weighted_palette=self.config.palette.weighted_palette,
+            num_attention_heads=self.config.palette.num_attention_heads,
+            feedforward_dim=self.config.palette.feedforward_dim,
             device=self.device,
         )
         return encoder
 
     @cached_property
-    def color_palette_adapter(self) -> SD1ColorPaletteAdapter[Any]:
+    def palette_adapter(self) -> SD1PaletteAdapter[Any]:
         
         weights : dict[str, Tensor] | None = None
         scale = 1.0
         
-        if "color_palette_adapter" in self.config.adapters:
-            if checkpoint := self.config.adapters["color_palette_adapter"].checkpoint:
+        if "palette_adapter" in self.config.adapters:
+            if checkpoint := self.config.adapters["palette_adapter"].checkpoint:
                 weights = load_from_safetensors(checkpoint)
-            scale = self.config.adapters["color_palette_adapter"].scale
+            scale = self.config.adapters["palette_adapter"].scale
         
-        adapter : SD1ColorPaletteAdapter[SD1UNet] = SD1ColorPaletteAdapter(
+        adapter : SD1PaletteAdapter[SD1UNet] = SD1PaletteAdapter(
             target=self.unet,
             weights=weights,
             scale=scale,
-            color_palette_encoder=self.color_palette_encoder
+            palette_encoder=self.palette_encoder
         )
         
         if weights is None:
@@ -113,18 +113,18 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
 
     def __init__(
         self,
-        config: ColorPaletteLatentDiffusionConfig,
+        config: PaletteLatentDiffusionConfig,
         callbacks: "list[Callback[Any]] | None" = None,
     ) -> None:
         super().__init__(config=config, callbacks=callbacks)
-        self.callbacks.extend((LoadColorPalette(), SaveColorPalette(), GradientNormLayerLogging()))
+        self.callbacks.extend((LoadPalette(), SavePalette(), GradientNormLayerLogging()))
     
     def load_models(self) -> dict[str, fl.Module]:
         return {
             "unet": self.unet,
             "text_encoder": self.text_encoder,
             "lda": self.lda,
-            "color_palette_encoder": self.color_palette_encoder,
+            "palette_encoder": self.palette_encoder,
         }
     
     @cached_property
@@ -135,15 +135,15 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
             source_prompts=self.config.evaluation.prompts,
             text_encoder=self.text_encoder,
             histogram_extractor=self.histogram_extractor,
-            color_palette_extractor=self.color_palette_extractor
+            palette_extractor=self.palette_extractor
         )
         
     # def eval_dataset(self) -> list[BatchHistogramPrompt]:
     #     dataset = self.dataset
     #     indices = self.config.evaluation.db_indexes
     #     items = [dataset[i][0] for i in indices]
-    #     print(f"color palette lenght : {[len(item.color_palette) for item in items]}")
-    #     palette = [self.color_palette_extractor(item.image, size=len(item.color_palette)) for item in items]
+    #     print(f"color palette lenght : {[len(item.palette) for item in items]}")
+    #     palette = [self.palette_extractor(item.image, size=len(item.palette)) for item in items]
     #     images = [item.image for item in items]
     #     eval_indices = list(zip(indices, palette, images))
         
@@ -174,7 +174,7 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
             result_histograms = self.histogram_extractor(result_images),
             result_images=result_images,
             source_images=batch.source_images,
-            result_palettes=[self.color_palette_extractor(image, size=len(batch.source_palettes[i])) for i, image in enumerate(tensor_to_images(result_images))],
+            result_palettes=[self.palette_extractor(image, size=len(batch.source_palettes[i])) for i, image in enumerate(tensor_to_images(result_images))],
             text_embeddings=batch.text_embeddings
         )
     
@@ -187,16 +187,16 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
     def collate_prompts(self, batch: list[BatchHistogramPrompt]) -> BatchHistogramPrompt:
         return BatchHistogramPrompt.collate_fn(batch)
     
-    def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
+    def compute_loss(self, batch: TextEmbeddingPaletteLatentsBatch) -> Tensor:
         
         texts = [item.text for item in batch]
         text_embeddings = self.text_encoder(texts)
         
         latents = self.lda.images_to_latents([item.image for item in batch])
-        color_palettes = [self.color_palette_extractor(item.image, size=len(item.color_palette)) for item in batch]
+        palettes = [self.palette_extractor(item.image, size=len(item.palette)) for item in batch]
         
-        color_palette_embeddings = self.color_palette_encoder(
-            color_palettes
+        palette_embeddings = self.palette_encoder(
+            palettes
         )
 
         timestep = self.sample_timestep()
@@ -205,7 +205,7 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
         self.unet.set_timestep(timestep=timestep)
 
         self.unet.set_clip_text_embedding(clip_text_embedding=text_embeddings)
-        self.color_palette_adapter.set_color_palette_embedding(color_palette_embeddings)
+        self.palette_adapter.set_palette_embedding(palette_embeddings)
 
         prediction = self.unet(noisy_latents)
         loss = self.mse_loss(prediction, noise)
@@ -213,8 +213,8 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
         return loss
     
     def eval_set_adapter_values(self, batch: BatchHistogramPrompt) -> None:
-        self.color_palette_adapter.set_color_palette_embedding(
-            self.color_palette_encoder.compute_color_palette_embedding(
+        self.palette_adapter.set_palette_embedding(
+            self.palette_encoder.compute_palette_embedding(
                 batch.source_palettes
             )
         )
@@ -222,7 +222,7 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
     def draw_cover_image(self, batch: BatchHistogramResults) -> Image.Image:
         (batch_size, _, height, width) = batch.result_images.shape
         
-        palette_img_size = width // self.config.color_palette.max_colors
+        palette_img_size = width // self.config.palette.max_colors
         source_images = batch.source_images
 
         join_canvas_image: Image.Image = Image.new(
@@ -240,13 +240,13 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
             join_canvas_image.paste(palette_out_img, box=(width, i*(height+palette_img_size) + height))
         return join_canvas_image
     
-    # def palette_distance(self, source: list[ColorPalette], result: list[ColorPalette]) -> float:
+    # def palette_distance(self, source: list[Palette], result: list[Palette]) -> float:
     #     if len(source) != len(result):
     #         raise ValueError("The source and result palettes must have the same length.")
         
     #     distance = 0.0
     #     for i in range(len(source)):
-    #         distance += self.color_palette_extractor.distance(source[i], result[i])
+    #         distance += self.palette_extractor.distance(source[i], result[i])
             
     #     return distance
     
@@ -274,13 +274,13 @@ class ColorPaletteLatentDiffusionTrainer(AbstractColorTrainer[BatchHistogramProm
         
         self.log(log_dict)   
 
-class LoadColorPalette(Callback[ColorPaletteLatentDiffusionTrainer]):
-    def on_train_begin(self, trainer: ColorPaletteLatentDiffusionTrainer) -> None:
-        adapter = trainer.color_palette_adapter
+class LoadPalette(Callback[PaletteLatentDiffusionTrainer]):
+    def on_train_begin(self, trainer: PaletteLatentDiffusionTrainer) -> None:
+        adapter = trainer.palette_adapter
         adapter.inject()
 
-class SaveColorPalette(Callback[ColorPaletteLatentDiffusionTrainer]):
-    def on_checkpoint_save(self, trainer: ColorPaletteLatentDiffusionTrainer) -> None:
+class SavePalette(Callback[PaletteLatentDiffusionTrainer]):
+    def on_checkpoint_save(self, trainer: PaletteLatentDiffusionTrainer) -> None:
         tensors: dict[str, Tensor] = {}
 
         model = trainer.unet
@@ -288,12 +288,12 @@ class SaveColorPalette(Callback[ColorPaletteLatentDiffusionTrainer]):
             raise ValueError("The model must have a parent.")
         adapter = model.parent
 
-        tensors = {f"color_palette_adapter.{i:03d}.{j:03d}": w for i, ws in enumerate(adapter.weights) for j, w in enumerate(ws)}
-        encoder = trainer.color_palette_encoder
+        tensors = {f"palette_adapter.{i:03d}.{j:03d}": w for i, ws in enumerate(adapter.weights) for j, w in enumerate(ws)}
+        encoder = trainer.palette_encoder
 
         state_dict = encoder.state_dict()
         for i in state_dict:
-            tensors.update({f"color_palette_encoder.{i}": state_dict[i]})
+            tensors.update({f"palette_encoder.{i}": state_dict[i]})
         
         path = f"{trainer.ensure_checkpoints_save_folder}/step{trainer.clock.step}.safetensors"
         logger.info(

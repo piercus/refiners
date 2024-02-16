@@ -7,7 +7,7 @@ from sklearn.metrics import ndcg_score  # type: ignore
 from sklearn.neighbors import NearestNeighbors  # type: ignore
 
 from refiners.fluxion.utils import tensor_to_images
-from refiners.fluxion.adapters.color_palette import Color, ColorPalette
+from refiners.fluxion.adapters.palette import Color, Palette
 
 from torch import empty, Tensor, cat
 
@@ -15,106 +15,16 @@ class ImageAndPalette(TypedDict):
     image: Image.Image
     palette: list[Color]
     
-Logger = Callable[[Any], None]
-
-CollatableProps = list[Any] | Tensor
-
-PromptType = TypeVar('PromptType', bound='AbstractColorPrompt')
-
-class AbstractColorPrompt:
-    _list_keys: list[str] = []
-    _tensor_keys: dict[str, tuple[int, ...]] = {}
-    
-    def __init__(
-        self,
-        **kwargs : CollatableProps
-    ) -> None:
-        for key in self.__class__._list_keys:
-            if key not in kwargs:
-                raise ValueError(f"Key {key} is not present in {kwargs}")
-            setattr(self, key, kwargs[key])
-        for key in self.__class__._tensor_keys:
-            if key not in kwargs:
-                raise ValueError(f"Key {key} is not present in {kwargs}")
-            setattr(self, key, kwargs[key])
-
-    @classmethod
-    def collate_fn(cls: Type[PromptType], batch: Sequence["AbstractColorPrompt"]) -> PromptType:
-        opts : dict[str, CollatableProps] = {}
-        for key in cls._list_keys:
-
-            opts[key] : list[Any] = []
-
-            for item in batch:
-                if not hasattr(item, key):
-                    raise ValueError(f"Key {key} is not present in {item}")
-                for prop in getattr(item, key):
-                    opts[key].append(prop)
-        for key in cls._tensor_keys:
-            
-            lst : list[Tensor] = []
-            for item in batch:
-                if not hasattr(item, key):
-                    raise ValueError(f"Key {key} is not present in {item}")
-                tensor = getattr(item, key)
-                if not isinstance(tensor, Tensor):
-                    raise ValueError(f"Key {key}, {tensor} should be a tensor")
-                lst.append(tensor)
-            
-            opts[key] = cat(lst)
-
-        return cls(**opts)
-    
-    @classmethod
-    def empty(cls: Type[PromptType]) -> PromptType:
-        opts : dict[str, CollatableProps] = {}
-        
-        for key in cls._list_keys:
-            opts[key] = []
-        for key in cls._tensor_keys:
-            size = cls._tensor_keys[key]
-            tensor = empty((0,)+ size)
-            opts[key] = tensor
-            
-        return cls(**opts)
-
-    def get_indices(self: PromptType, indices: list[int]) -> PromptType:
-        opts : dict[str, CollatableProps] = {}
-        
-        for key in self.__class__._list_keys:
-            opts[key] = [getattr(self, key)[i] for i in indices]
-        for key in self._tensor_keys:
-            opts[key] = getattr(self, key)[indices]
-            
-        return self.__class__(**opts)
-    
-    def get_prompt(self: PromptType, prompt: str) -> PromptType:
-        prompts = cast(list[str], getattr(self, "source_prompts"))
-        indices = [i for i, p in enumerate(prompts) if p == prompt]
-        return self.get_indices(indices)
-    
-class AbstractColorResults(Generic[PromptType], AbstractColorPrompt):
-    __prompt_type: Type[PromptType]
-    
-    def to_prompt(self) -> PromptType:
-        opts : dict[str, CollatableProps] = {}
-        
-        for key in self.__prompt_type._list_keys:
-            opts[key] = getattr(self, key)
-        for key in self.__prompt_type._tensor_keys:
-            opts[key] = getattr(self, key)
-        
-        return self.__prompt_type()
 
 
 
-class BatchColorPalettePrompt(AbstractColorPrompt):
+class BatchPalettePrompt(AbstractColorPrompt):
     _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes"]
     _tensor_keys: dict[str, tuple[int, ...]] = {
         "text_embeddings": (77, 768)
     }
 
-class BatchColorPaletteResults(AbstractColorResults[BatchColorPalettePrompt]):    
+class BatchInput(AbstractColorResults[BatchPalettePrompt]):    
     _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
     _tensor_keys: dict[str, tuple[int, ...]] = {
         "text_embeddings": (77, 768),
@@ -203,7 +113,7 @@ def batch_image_palette_metrics(log: Logger, images_and_palettes: list[ImageAndP
 
 def batch_palette_metrics(log: Logger, images_and_palettes: BatchHistogramResults, prefix: str = "palette-img"):
     
-    source_palettes = cast(list[ColorPalette], images_and_palettes.source_palettes) # type: ignore
+    source_palettes = cast(list[Palette], images_and_palettes.source_palettes) # type: ignore
     palettes: list[list[Color]] = []
     for p in source_palettes: # type: ignore
         colors : list[Color] = []

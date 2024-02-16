@@ -458,7 +458,7 @@ class HistogramCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
 TSDNet = TypeVar("TSDNet", bound="SD1UNet | SDXLUNet")
 
 
-class ColorPaletteMLPEncoder(fl.Chain):
+class PaletteMLPEncoder(fl.Chain):
 
     def __init__(
         self,

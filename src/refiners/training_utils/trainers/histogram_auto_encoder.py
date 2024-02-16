@@ -18,11 +18,11 @@ from refiners.fluxion.utils import save_to_safetensors
 
 from refiners.training_utils.callback import Callback, GradientNormLayerLogging
 from refiners.training_utils.config import BaseConfig
-from refiners.training_utils.datasets.color_palette import ColorDatasetConfig, ColorPaletteDataset, TextEmbeddingColorPaletteLatentsBatch
+from refiners.training_utils.datasets.palette import ColorDatasetConfig, PaletteDataset, TextEmbeddingPaletteLatentsBatch
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
 from refiners.training_utils.trainers.trainer import Trainer
 from pydantic import BaseModel
-from refiners.fluxion.adapters.color_palette import ColorPaletteExtractor, ColorPalette
+from refiners.fluxion.adapters.palette import PaletteExtractor, Palette
 from PIL import Image, ImageDraw
 
 class HistogramAutoEncoderConfig(BaseModel):
@@ -39,27 +39,27 @@ class TrainHistogramAutoEncoderConfig(BaseConfig):
     eval_dataset: ColorDatasetConfig
 
 class HistogramAutoEncoderTrainer(
-    Trainer[TrainHistogramAutoEncoderConfig, TextEmbeddingColorPaletteLatentsBatch]
+    Trainer[TrainHistogramAutoEncoderConfig, TextEmbeddingPaletteLatentsBatch]
 ):
-    def load_dataset(self) -> ColorPaletteDataset:
-        return ColorPaletteDataset(
+    def load_dataset(self) -> PaletteDataset:
+        return PaletteDataset(
             config=self.config.dataset
 		)
     
     @cached_property
-    def dataset(self) -> ColorPaletteDataset:  # type: ignore
+    def dataset(self) -> PaletteDataset:  # type: ignore
         return self.load_dataset() 
     
     @cached_property
-    def eval_dataset(self) -> ColorPaletteDataset:  # type: ignore
+    def eval_dataset(self) -> PaletteDataset:  # type: ignore
         return self.load_eval_dataset() 
     
-    def load_eval_dataset(self) -> ColorPaletteDataset:
-        return ColorPaletteDataset(
+    def load_eval_dataset(self) -> PaletteDataset:
+        return PaletteDataset(
             config=self.config.eval_dataset
 		)
     
-    def draw_palette(self, palette: ColorPalette, width: int, height: int) -> Image.Image:
+    def draw_palette(self, palette: Palette, width: int, height: int) -> Image.Image:
         palette_img = Image.new(mode="RGB", size=(width, height))
         
         # sort the palette by weight
@@ -73,8 +73,8 @@ class HistogramAutoEncoderTrainer(
         return palette_img
     
     @cached_property
-    def color_palette_extractor(self) -> ColorPaletteExtractor:
-        return ColorPaletteExtractor(
+    def palette_extractor(self) -> PaletteExtractor:
+        return PaletteExtractor(
             size=8,
             weighted_palette=True
         )
@@ -106,7 +106,7 @@ class HistogramAutoEncoderTrainer(
             "histogram_auto_encoder": self.histogram_auto_encoder
         }
 
-    def compute_loss(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
+    def compute_loss(self, batch: TextEmbeddingPaletteLatentsBatch) -> Tensor:
         
         expected = self.histogram_extractor.images_to_histograms([item.image for item in batch], device = self.device, dtype = self.dtype)
 
@@ -136,7 +136,7 @@ class HistogramAutoEncoderTrainer(
         return HistogramDistance(color_bits=self.config.histogram_auto_encoder.color_bits)
     
     @cached_property
-    def eval_dataloader(self) -> DataLoader[TextEmbeddingColorPaletteLatentsBatch]:
+    def eval_dataloader(self) -> DataLoader[TextEmbeddingPaletteLatentsBatch]:
         
         collate_fn = getattr(self.eval_dataset, "collate_fn", None)
         return DataLoader(
@@ -170,7 +170,7 @@ class HistogramAutoEncoderTrainer(
         
         return histo_img
 
-    def compute_evaluation_metrics(self, batch: TextEmbeddingColorPaletteLatentsBatch) -> Tensor:
+    def compute_evaluation_metrics(self, batch: TextEmbeddingPaletteLatentsBatch) -> Tensor:
                 
         expected = self.histogram_extractor.images_to_histograms([item.image for item in batch], device = self.device, dtype = self.dtype)
 
