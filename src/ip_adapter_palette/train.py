@@ -12,6 +12,7 @@ from ip_adapter_lora.latent_diffusion import SD1TrainerMixin
 from refiners.fluxion import load_from_safetensors
 from refiners.fluxion.utils import no_grad
 from ip_adapter_palette.palette_adapter import SD1PaletteAdapter
+from ip_adapter_palette.utils import AbstractBatchInput
 from refiners.training_utils import (
     register_model,
     register_callback,
@@ -45,40 +46,22 @@ class Batch:
         )
 
 
-class BatchInput(AbstractBatch[BatchInput]):    
-    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
+class BatchInput(AbstractBatchInput):    
+    _list_keys: list[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
     _tensor_keys: dict[str, tuple[int, ...]] = {
         "text_embeddings": (77, 768),
         "result_images": (3, 512, 512)
     }
 
-class BatchOutput:
-    latent: torch.Tensor
-    image_embedding: torch.Tensor
-    text_embedding: torch.Tensor
-
-    def to(self, device: torch.device, dtype: torch.dtype) -> "Batch":
-        return Batch(
-            latent=self.latent.to(device=device, dtype=dtype),
-            image_embedding=self.image_embedding.to(device=device, dtype=dtype),
-            text_embedding=self.text_embedding.to(device=device, dtype=dtype),
-        )
-
-@dataclass
-class Batch:
-    latent: torch.Tensor
-    image_embedding: torch.Tensor
-    text_embedding: torch.Tensor
-
-    def to(self, device: torch.device, dtype: torch.dtype) -> "Batch":
-        return Batch(
-            latent=self.latent.to(device=device, dtype=dtype),
-            image_embedding=self.image_embedding.to(device=device, dtype=dtype),
-            text_embedding=self.text_embedding.to(device=device, dtype=dtype),
-        )
-
-
-
+class BatchOutput(AbstractBatchOutput[BatchInput]):
+    __input_type: BatchInput
+    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
+    _tensor_keys: dict[str, tuple[int, ...]] = {
+        "source_histograms": (64, 64, 64),
+        "text_embeddings": (77, 768),
+        "result_images": (3, 512, 512),
+        "result_histograms": (64, 64, 64)
+    }
 
 class SD1TrainerMixin(ABC):
     config: BaseLatentDiffusionConfig
@@ -95,26 +78,20 @@ class SD1TrainerMixin(ABC):
         sd.lda.requires_grad_(False)
         return sd
 
-
-
 class SD1IPPalette(Trainer[Config, Batch], WandbMixin, SD1TrainerMixin):
 	@register_model()
-    def palette_encoder(self, config: IPAdapterConfig) -> SD1PaletteAdapter:
+    def palette_encoder(self, config: PaletteEncoderConfig) -> PaletteEncoder:
         logger.info("Loading Palette Encoder.")
         
         weights = load_from_safetensors(config.weights)
         
-        ip_adapter = SD1PaletteAdapter(
-            self.unet,
+        palette_encoder = PaletteEncoder(
             palette_encoder=self.palette_encoder,
             weights=weights,
             fine_grained=True,
-        ).inject()
-        
-        ip_adapter.requires_grad_(True)
-        logger.info("IP Adapter loaded.")
+        )
 
-        return ip_adapter
+        return palette_encoder
     
     @register_model()
     def ip_adapter(self, config: IPAdapterConfig) -> SD1PaletteAdapter:
@@ -146,12 +123,9 @@ class SD1IPPalette(Trainer[Config, Batch], WandbMixin, SD1TrainerMixin):
     def save_best_model(self, config: SaveBestModelConfig) -> SaveBestModel:
         return SaveBestModel(config)
 
-    @cached_property
-    def data(self) -> list[Batch]:
-        return [
-            torch.load(batch).to(device=self.device, dtype=self.dtype)  # type: ignore
-            for batch in self.config.data.rglob("*.pt")
-        ]
+    # @cached_property
+    # def data(self) -> list[BatchInput]:
+    #     return BatchInput()
 
     @cached_property
     @no_grad()
@@ -162,6 +136,7 @@ class SD1IPPalette(Trainer[Config, Batch], WandbMixin, SD1TrainerMixin):
         return embedding
 
     def get_item(self, index: int) -> Batch:
+        
         item = self.data[index]
         if (
             random.random()
@@ -175,11 +150,7 @@ class SD1IPPalette(Trainer[Config, Batch], WandbMixin, SD1TrainerMixin):
         return item
 
     def collate_fn(self, batch: list[Batch]) -> Batch:
-        return Batch(
-            latent=torch.cat([b.latent for b in batch]),
-            image_embedding=torch.cat([b.image_embedding for b in batch]),
-            text_embedding=torch.cat([b.text_embedding for b in batch]),
-        )
+        return BatchInput.collate_fn(batch)
 
     @property
     def dataset_length(self) -> int:

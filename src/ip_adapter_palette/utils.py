@@ -8,6 +8,24 @@ class AbstractBatchInput:
     _list_keys: list[str] = []
     _tensor_keys: dict[str, tuple[int, ...]] = {}
     
+    def to(self, device: torch.device, dtype: torch.dtype) -> "Batch":
+        
+        opts : dict[str, CollatableProps] = {}
+		for key in cls._tensor_keys:
+            
+            lst : list[Tensor] = []
+            for item in batch:
+                if not hasattr(item, key):
+                    raise ValueError(f"Key {key} is not present in {item}")
+                tensor = getattr(item, key)
+                if not isinstance(tensor, Tensor):
+                    raise ValueError(f"Key {key}, {tensor} should be a tensor")
+                lst.append(tensor)
+            
+            opts[key] = cat(lst)
+              
+        return self.__class__(**opts)
+        
     def __init__(
         self,
         **kwargs : CollatableProps
@@ -77,14 +95,14 @@ class AbstractBatchInput:
         return self.get_indices(indices)
     
 class AbstractBatchOutput(Generic[InputType], AbstractBatchInput):
-    __prompt_type: Type[InputType]
+    __input_type: Type[InputType]
     
     def to_input(self) -> InputType:
         opts : dict[str, CollatableProps] = {}
         
-        for key in self.__prompt_type._list_keys:
+        for key in self.__input_type._list_keys:
             opts[key] = getattr(self, key)
-        for key in self.__prompt_type._tensor_keys:
+        for key in self.__input_type._tensor_keys:
             opts[key] = getattr(self, key)
         
-        return self.__prompt_type()
+        return self.__input_type()
