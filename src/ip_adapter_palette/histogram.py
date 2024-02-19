@@ -1,7 +1,8 @@
 from typing import Any, List, TypeVar
+
 from refiners.foundationals.dinov2.vit import FeedForward
 
-from torch import rand, ge, isnan, min, max, log, Tensor, sort, flatten, cat, device as Device, dtype as DType, histogramdd, histogram, nn, stack, zeros_like, float32
+from torch import rand, min, Tensor, sort, flatten, cat, device as Device, dtype as DType, histogramdd, histogram, stack, zeros_like, float32
 from torch.nn import init, L1Loss
 from torch.nn.functional import mse_loss as _mse_loss, kl_div as _kl_div
 
@@ -9,13 +10,12 @@ import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.adapter import Adapter
 from refiners.fluxion.layers.attentions import ScaledDotProductAttention
 from refiners.foundationals.clip.image_encoder import ClassToken, PositionalEncoder, TransformerLayer
-from refiners.foundationals.latent_diffusion.image_prompt import CrossAttentionAdapter
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.unet import SD1UNet
 from refiners.foundationals.latent_diffusion.stable_diffusion_xl.unet import SDXLUNet
 from PIL import Image
 from refiners.fluxion.utils import images_to_tensor
 from refiners.foundationals.clip.common import PositionalEncoder, FeedForward
-from geomloss import SamplesLoss
+from geomloss import SamplesLoss # type: ignore
 
 def images_to_histo_channels(images: List[Image.Image], color_bits: int = 8) -> List[Tensor]:
     img_tensor = images_to_tensor(images)
@@ -25,9 +25,9 @@ def images_to_histo_channels(images: List[Image.Image], color_bits: int = 8) -> 
 
 def tensor_to_sorted_channels(image: Tensor, color_bits: int = 8, extended : bool = False) -> List[Tensor]:
     sorted_channels: List[Tensor] = []
-    channels: List[Tensor] = image.split(1, dim=1)
+    channels: List[Tensor] = image.split(1, dim=1) # type: ignore
     if extended:
-        [red, green, blue] = channels
+        [red, green, blue] = channels # type: ignore
         channels = [
             red,
             green, 
@@ -37,9 +37,9 @@ def tensor_to_sorted_channels(image: Tensor, color_bits: int = 8, extended : boo
             (green+blue)/2
         ]
     
-    for channel in channels:
+    for channel in channels: # type: ignore
         # We extract RGB curves
-        sorted_channel, _ = sort(flatten(channel, 1))
+        sorted_channel, _ = sort(flatten(channel, 1)) # type: ignore
         sorted_channels.append(sorted_channel)
     return sorted_channels
 
@@ -429,12 +429,12 @@ class HistogramCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
         return self.ensure_find(HistogramCrossAttention)
 
     @property
-    def image_key_projection(self) -> fl.Linear:
-        return self.histogram_cross_attention.Distribute[1].Linear
+    def image_key_projection(self) -> fl.Module:
+        return self.histogram_cross_attention['Distribute_1.Linear']
 
     @property
-    def image_value_projection(self) -> fl.Linear:
-        return self.histogram_cross_attention.Distribute[2].Linear
+    def image_value_projection(self) -> fl.Module:
+        return self.histogram_cross_attention['Distribute_2.Linear']
 
     @property
     def scale(self) -> float:
@@ -444,11 +444,6 @@ class HistogramCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
     def scale(self, value: float) -> None:
         self._scale = value
         self.histogram_cross_attention.scale = value
-
-    def load_weights(self, key_tensor: Tensor, value_tensor: Tensor) -> None:
-        self.image_key_projection.weight = nn.Parameter(key_tensor)
-        self.image_value_projection.weight = nn.Parameter(value_tensor)
-        self.histogram_cross_attention.to(self.device, self.dtype)
 
     @property
     def weights(self) -> list[Tensor]:
@@ -554,7 +549,7 @@ class SD1HistogramAdapter(fl.Chain, Adapter[TSDNet]):
         with self.setup_adapter(target):
             super().__init__(target)
 
-        self.sub_adapters: list[CrossAttentionAdapter] = [
+        self.sub_adapters: list[HistogramCrossAttentionAdapter] = [
             HistogramCrossAttentionAdapter(target=cross_attn, scale=scale, embedding_dim=embedding_dim)
             for cross_attn in filter(lambda attn: type(attn) != fl.SelfAttention, target.layers(fl.Attention))
         ]
