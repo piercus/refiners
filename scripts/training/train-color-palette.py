@@ -1,7 +1,14 @@
 from matplotlib.pyplot import hist
-from refiners.training_utils.trainers.color_palette import ColorPaletteLatentDiffusionConfig, ColorPaletteLatentDiffusionTrainer
+
+from refiners.training_utils.trainers.color_palette import (
+    ColorPaletteLatentDiffusionConfig,
+    ColorPaletteLatentDiffusionTrainer,
+)
 from refiners.training_utils.trainers.histogram import HistogramLatentDiffusionConfig, HistogramLatentDiffusionTrainer
-from refiners.training_utils.trainers.histogram_auto_encoder import HistogramAutoEncoderTrainer, TrainHistogramAutoEncoderConfig
+from refiners.training_utils.trainers.histogram_auto_encoder import (
+    HistogramAutoEncoderTrainer,
+    TrainHistogramAutoEncoderConfig,
+)
 from refiners.training_utils.trainers.latent_diffusion import FinetuneLatentDiffusionBaseConfig
 
 

@@ -1,33 +1,41 @@
 from functools import cached_property
 from typing import Any, TypedDict
-from refiners.fluxion.utils import load_from_safetensors, tensor_to_images
 
+import numpy as np
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
-from refiners.training_utils.trainers.abstract_color_trainer import AbstractColorTrainer, ColorTrainerEvaluationConfig
-from refiners.training_utils.metrics.palette import BatchHistogramPrompt
-from refiners.training_utils.trainers.abstract_color_trainer import GridEvalDataset
-from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
-from refiners.training_utils.datasets.palette import PaletteDataset
 from torch import Tensor
-import numpy as np
 
 import refiners.fluxion.layers as fl
-from refiners.fluxion.adapters.palette import Color, PaletteEncoder, SD1PaletteAdapter, PaletteExtractor
-from refiners.fluxion.utils import save_to_safetensors
-from refiners.foundationals.latent_diffusion import (
-    SD1UNet
+from refiners.fluxion.adapters.palette import Color, PaletteEncoder, PaletteExtractor, SD1PaletteAdapter
+from refiners.fluxion.utils import load_from_safetensors, save_to_safetensors, tensor_to_images
+from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
+from refiners.foundationals.latent_diffusion import SD1UNet
+from refiners.training_utils.callback import Callback, GradientNormLayerLogging
+from refiners.training_utils.datasets.palette import (
+    ColorDatasetConfig,
+    Palette,
+    PaletteDataset,
+    TextEmbeddingPaletteLatentsBatch,
 )
-from refiners.training_utils.callback import Callback
-from refiners.training_utils.metrics.palette import BatchHistogramPrompt, BatchHistogramResults, ImageAndPalette, batch_image_palette_metrics
+from refiners.training_utils.metrics.palette import (
+    BatchHistogramPrompt,
+    BatchHistogramResults,
+    ImageAndPalette,
+    batch_image_palette_metrics,
+)
+from refiners.training_utils.trainers.abstract_color_trainer import (
+    AbstractColorTrainer,
+    ColorTrainerEvaluationConfig,
+    GridEvalDataset,
+)
 from refiners.training_utils.trainers.histogram import GridEvalHistogramDataset
 from refiners.training_utils.trainers.latent_diffusion import (
     FinetuneLatentDiffusionBaseConfig,
 )
-from refiners.training_utils.datasets.palette import ColorDatasetConfig, Palette, TextEmbeddingPaletteLatentsBatch
-from refiners.training_utils.callback import GradientNormLayerLogging
 from refiners.training_utils.wandb import WandbLoggable
+
 
 class PaletteConfig(BaseModel):
     feedforward_dim: int = 3072

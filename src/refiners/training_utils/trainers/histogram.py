@@ -1,36 +1,45 @@
 from functools import cached_property
 from typing import Any, List, Tuple, TypedDict
 
-from pydantic import BaseModel
-
 from loguru import logger
 from PIL import Image, ImageDraw
-from refiners.training_utils.trainers.histogram_auto_encoder import HistogramAutoEncoderConfig
-from refiners.training_utils.config import TrainingConfig
-from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
-from refiners.training_utils.trainers.abstract_color_trainer import AbstractColorTrainer, ColorTrainerEvaluationConfig, GridEvalDataset
-from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
+from pydantic import BaseModel
 from torch import Tensor
-from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
-from refiners.fluxion.adapters.palette import PaletteExtractor
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.histogram import (
-    HistogramDistance,
-    SD1HistogramAdapter,
     ColorLoss,
+    HistogramDistance,
+    HistogramExtractor,
+    HistogramProjection,
+    SD1HistogramAdapter,
     histogram_to_histo_channels,
-    HistogramProjection
 )
+from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
+from refiners.fluxion.adapters.palette import PaletteExtractor
 from refiners.fluxion.utils import images_to_tensor, save_to_safetensors, tensor_to_image
+from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
 from refiners.training_utils.callback import Callback, GradientNormLayerLogging
-from refiners.training_utils.datasets.palette import ColorDatasetConfig, Palette, PaletteDataset, SamplingByPalette, TextEmbeddingPaletteLatentsBatch
-from refiners.training_utils.metrics.palette import batch_palette_metrics, BatchHistogramPrompt, BatchHistogramResults
+from refiners.training_utils.config import TrainingConfig
+from refiners.training_utils.datasets.palette import (
+    ColorDatasetConfig,
+    Palette,
+    PaletteDataset,
+    SamplingByPalette,
+    TextEmbeddingPaletteLatentsBatch,
+)
+from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
+from refiners.training_utils.metrics.palette import BatchHistogramPrompt, BatchHistogramResults, batch_palette_metrics
+from refiners.training_utils.trainers.abstract_color_trainer import (
+    AbstractColorTrainer,
+    ColorTrainerEvaluationConfig,
+    GridEvalDataset,
+)
+from refiners.training_utils.trainers.histogram_auto_encoder import HistogramAutoEncoderConfig
 from refiners.training_utils.trainers.latent_diffusion import (
     FinetuneLatentDiffusionBaseConfig,
     TestDiffusionBaseConfig,
 )
-from refiners.fluxion.adapters.histogram import HistogramExtractor
 
 Color = Tuple[int, int, int]
 Histogram = Tensor

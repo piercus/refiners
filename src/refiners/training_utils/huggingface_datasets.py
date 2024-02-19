@@ -1,6 +1,6 @@
 from typing import Any, Generic, Protocol, TypeVar, cast
 
-from datasets import VerificationMode, load_dataset as _load_dataset, DownloadManager, Image # type: ignore
+from datasets import DownloadManager, Image, VerificationMode, load_dataset as _load_dataset  # type: ignore
 from pydantic import BaseModel  # type: ignore
 
 __all__ = ["load_hf_dataset", "HuggingfaceDataset"]

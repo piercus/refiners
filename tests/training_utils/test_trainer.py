@@ -19,6 +19,7 @@ from refiners.training_utils.trainers.trainer import (
     human_readable_number,
 )
 
+
 @dataclass
 class MockBatch:
     inputs: torch.Tensor

@@ -1,5 +1,7 @@
 from pathlib import Path
+
 from pydantic import BaseModel
+
 from refiners.training_utils.config import BaseConfig, ModelConfig
 from refiners.training_utils.wandb import WandbConfig
 

@@ -1,6 +1,6 @@
 import torch
 
-from refiners.fluxion.adapters.histogram import HistogramExtractor, HistogramDistance
+from refiners.fluxion.adapters.histogram import HistogramDistance, HistogramExtractor
 from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
 
 

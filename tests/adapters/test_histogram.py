@@ -1,9 +1,18 @@
-import torch
-
-from refiners.fluxion.adapters.histogram import HistogramDistance, HistogramEncoder, HistogramExtractor, ColorLoss, histogram_to_histo_channels, sorted_channels_to_histo_channels, tensor_to_sorted_channels
-from refiners.fluxion.utils import image_to_tensor, tensor_to_image
-from PIL import Image
 import numpy as np
+import torch
+from PIL import Image
+
+from refiners.fluxion.adapters.histogram import (
+    ColorLoss,
+    HistogramDistance,
+    HistogramEncoder,
+    HistogramExtractor,
+    histogram_to_histo_channels,
+    sorted_channels_to_histo_channels,
+    tensor_to_sorted_channels,
+)
+from refiners.fluxion.utils import image_to_tensor, tensor_to_image
+
 
 def test_histogram_extractor() -> None:
     color_bits = 3

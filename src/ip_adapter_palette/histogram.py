@@ -1,21 +1,35 @@
-from typing import Any, List, TypeVar
+from typing import Any, Iterator, List, TypeVar
 
-from refiners.foundationals.dinov2.vit import FeedForward
-
-from torch import rand, min, Tensor, sort, flatten, cat, device as Device, dtype as DType, histogramdd, histogram, stack, zeros_like, float32
-from torch.nn import init, L1Loss
-from torch.nn.functional import mse_loss as _mse_loss, kl_div as _kl_div
+from geomloss import SamplesLoss  # type: ignore
+from PIL import Image
+from torch import (
+    Tensor,
+    cat,
+    device as Device,
+    dtype as DType,
+    flatten,
+    float32,
+    histogram,
+    histogramdd,
+    min,
+    rand,
+    sort,
+    stack,
+    zeros_like,
+)
+from torch.nn import L1Loss, Parameter, init
+from torch.nn.functional import kl_div as _kl_div, mse_loss as _mse_loss
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.adapter import Adapter
 from refiners.fluxion.layers.attentions import ScaledDotProductAttention
+from refiners.fluxion.utils import images_to_tensor
+from refiners.foundationals.clip.common import FeedForward, PositionalEncoder
 from refiners.foundationals.clip.image_encoder import ClassToken, PositionalEncoder, TransformerLayer
+from refiners.foundationals.dinov2.vit import FeedForward
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.unet import SD1UNet
 from refiners.foundationals.latent_diffusion.stable_diffusion_xl.unet import SDXLUNet
-from PIL import Image
-from refiners.fluxion.utils import images_to_tensor
-from refiners.foundationals.clip.common import PositionalEncoder, FeedForward
-from geomloss import SamplesLoss # type: ignore
+
 
 def images_to_histo_channels(images: List[Image.Image], color_bits: int = 8) -> List[Tensor]:
     img_tensor = images_to_tensor(images)
@@ -118,6 +132,7 @@ def sample_points(histogram: Tensor, num_samples: int = 1000, color_bits : int= 
     return cubed_dim.float()
 
 from math import sqrt
+
 
 class HistogramDistance(fl.Chain):
     def __init__(
@@ -429,14 +444,6 @@ class HistogramCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
         return self.ensure_find(HistogramCrossAttention)
 
     @property
-    def image_key_projection(self) -> fl.Module:
-        return self.histogram_cross_attention['Distribute_1.Linear']
-
-    @property
-    def image_value_projection(self) -> fl.Module:
-        return self.histogram_cross_attention['Distribute_2.Linear']
-
-    @property
     def scale(self) -> float:
         return self._scale
 
@@ -446,8 +453,10 @@ class HistogramCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
         self.histogram_cross_attention.scale = value
 
     @property
-    def weights(self) -> list[Tensor]:
-        return [self.image_key_projection.weight, self.image_value_projection.weight]
+    def weights(self) -> Iterator[Parameter]:
+        return self.histogram_cross_attention.parameters()
+
+
 
 
 TSDNet = TypeVar("TSDNet", bound="SD1UNet | SDXLUNet")

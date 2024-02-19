@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, Literal, TypeVar, cast, List
+from typing import Any, Iterable, List, Literal, TypeVar, cast
 
 import torch
 from jaxtyping import Float
@@ -16,7 +16,6 @@ from torch import (
     manual_seed as _manual_seed,  # type: ignore
     no_grad as _no_grad,  # type: ignore
     norm as _norm,  # type: ignore
-    cat
 )
 from torch.nn.functional import conv2d, interpolate as _interpolate, pad as _pad  # type: ignore
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+
 from refiners.training_utils.callback import Callback, CallbackConfig
 
 

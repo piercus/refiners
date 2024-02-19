@@ -1,29 +1,29 @@
 from functools import cached_property
 from tkinter import W
 from typing import Any
-from loguru import logger
-from refiners.training_utils.wandb import WandbLoggable
 
+from loguru import logger
+from PIL import Image, ImageDraw
+from pydantic import BaseModel
 from torch import Tensor, isnan
-from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
+from torch.utils.data import DataLoader
 
 import refiners.fluxion.layers as fl
-from refiners.fluxion.adapters.histogram import (
-    HistogramDistance,
-    HistogramExtractor,
-    histogram_to_histo_channels
-)
-from torch.utils.data import DataLoader
+from refiners.fluxion.adapters.histogram import HistogramDistance, HistogramExtractor, histogram_to_histo_channels
+from refiners.fluxion.adapters.histogram_auto_encoder import HistogramAutoEncoder
+from refiners.fluxion.adapters.palette import Palette, PaletteExtractor
 from refiners.fluxion.utils import save_to_safetensors
-
 from refiners.training_utils.callback import Callback, GradientNormLayerLogging
 from refiners.training_utils.config import BaseConfig
-from refiners.training_utils.datasets.palette import ColorDatasetConfig, PaletteDataset, TextEmbeddingPaletteLatentsBatch
+from refiners.training_utils.datasets.palette import (
+    ColorDatasetConfig,
+    PaletteDataset,
+    TextEmbeddingPaletteLatentsBatch,
+)
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
 from refiners.training_utils.trainers.trainer import Trainer
-from pydantic import BaseModel
-from refiners.fluxion.adapters.palette import PaletteExtractor, Palette
-from PIL import Image, ImageDraw
+from refiners.training_utils.wandb import WandbLoggable
+
 
 class HistogramAutoEncoderConfig(BaseModel):
     latent_dim: int

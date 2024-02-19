@@ -1,9 +1,11 @@
 from abc import ABC
 from functools import cached_property
-from ip_adapter_lora.config import LatentDiffusionConfig, SDModelConfig
 
 import torch
+from PIL import Image
+from torch import device as Device, dtype as DType
 
+from ip_adapter_lora.config import LatentDiffusionConfig, SDModelConfig
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
 from refiners.foundationals.latent_diffusion.auto_encoder import (
     LatentDiffusionAutoencoder,
@@ -14,12 +16,7 @@ from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import (
 )
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.unet import SD1UNet
 from refiners.training_utils import Trainer, register_model
-
-from PIL import Image
-from torch import device as Device, dtype as DType
-
 from refiners.training_utils.config import BaseConfig
-
 
 
 class BaseLatentDiffusionConfig(BaseConfig, ABC):

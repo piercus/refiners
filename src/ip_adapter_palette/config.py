@@ -1,8 +1,9 @@
 from pathlib import Path
-from pydantic import BaseModel
+
+from ip_adapter_lora.config import LatentDiffusionConfig, SDModelConfig
 from refiners.training_utils.config import BaseConfig, ModelConfig
 from refiners.training_utils.wandb import WandbConfig
-from ip_adapter_lora.config import LatentDiffusionConfig, SDModelConfig
+
 
 class IPAdapterConfig(ModelConfig):
     weights: Path

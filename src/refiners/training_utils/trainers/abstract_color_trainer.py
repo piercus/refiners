@@ -1,43 +1,39 @@
 from functools import cached_property
-from typing import Generic, TypeVar, Type, Any
+from typing import Any, Generic, Type, TypeVar
 
-from loguru import logger
-from refiners.training_utils.wandb import WandbLoggable
-from refiners.training_utils.metrics.palette import AbstractColorPrompt, AbstractColorResults
-from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
-from torch import Tensor, randn, tensor
-from refiners.fluxion.adapters.palette import PaletteExtractor, Palette
 import numpy as np
-from torch.utils.data import DataLoader
-
-from refiners.fluxion.adapters.histogram import (
-    HistogramDistance,
-    HistogramExtractor
-)
+from loguru import logger
 from PIL import Image
-from refiners.foundationals.latent_diffusion import (
-    DPMSolver,
-    StableDiffusion_1,
-)
+from torch import Tensor, randn, tensor
 
-from refiners.training_utils.datasets.palette import ColorDatasetConfig, PaletteDataset, TextEmbeddingPaletteLatentsBatch
-from refiners.training_utils.trainers.latent_diffusion import (
-    FinetuneLatentDiffusionBaseConfig,
-    LatentDiffusionBaseTrainer,
-    TestDiffusionBaseConfig,
-)
-from refiners.training_utils.datasets.palette import PaletteDataset
-from refiners.training_utils.trainers.trainer import scoped_seed
 # def hash_tensor(image: Tensor) -> str:
 #     str2 = ""
 #     for i in range(image.shape[0]):
 #         local_str = f"{image[i].sum()}-{image[i].mean()}-{image[i].std()}-{image[i].max()}-{image[i].min()}"
 #         str2 += local_str
-    
 #     return str(hash(str2))
+from torch.utils.data import DataLoader, Dataset
 
-from torch.utils.data import Dataset
-
+from refiners.fluxion.adapters.histogram import HistogramDistance, HistogramExtractor
+from refiners.fluxion.adapters.palette import Palette, PaletteExtractor
+from refiners.foundationals.clip.text_encoder import CLIPTextEncoderL
+from refiners.foundationals.latent_diffusion import (
+    DPMSolver,
+    StableDiffusion_1,
+)
+from refiners.training_utils.datasets.palette import (
+    ColorDatasetConfig,
+    PaletteDataset,
+    TextEmbeddingPaletteLatentsBatch,
+)
+from refiners.training_utils.metrics.palette import AbstractColorPrompt, AbstractColorResults
+from refiners.training_utils.trainers.latent_diffusion import (
+    FinetuneLatentDiffusionBaseConfig,
+    LatentDiffusionBaseTrainer,
+    TestDiffusionBaseConfig,
+)
+from refiners.training_utils.trainers.trainer import scoped_seed
+from refiners.training_utils.wandb import WandbLoggable
 
 
 class ColorTrainerEvaluationConfig(TestDiffusionBaseConfig):

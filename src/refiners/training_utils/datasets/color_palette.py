@@ -1,14 +1,15 @@
 import random
 from dataclasses import dataclass
-from typing import List, Callable
+from typing import Callable, List
 
 import numpy as np
 from PIL import Image
+from pydantic import BaseModel
+
+from refiners.fluxion.adapters.palette import Palette
 from refiners.training_utils.datasets.latent_diffusion import TextEmbeddingLatentsBaseDataset
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
-from refiners.fluxion.adapters.palette import Palette
 
-from pydantic import BaseModel
 
 class ColorJitterConfig(BaseModel):
     brightness: float = 0.0
@@ -32,8 +33,14 @@ class DatasetItem:
     palettes: dict[str, Palette]
     image: Image.Image
 
-from torchvision.transforms import Compose, RandomCrop, RandomHorizontalFlip, ColorJitter, RandomGrayscale# type: ignore
 from torch.nn import Module as TorchModule
+from torchvision.transforms import (  # type: ignore
+    ColorJitter,
+    Compose,
+    RandomCrop,
+    RandomGrayscale,
+    RandomHorizontalFlip,
+)
 
 TextEmbeddingPaletteLatentsBatch = List[PaletteDatasetItem]
 

@@ -5,10 +5,11 @@ from torch.nn import (
     InstanceNorm2d as _InstanceNorm2d,
     LayerNorm as _LayerNorm,
     Parameter as TorchParameter,
-    Softmax as _Softmax
+    Softmax as _Softmax,
 )
 
 from refiners.fluxion.layers.module import Module, WeightedModule
+
 
 class LayerNorm(_LayerNorm, WeightedModule):
     """Layer Normalization layer.

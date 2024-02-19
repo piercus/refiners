@@ -1,3 +1,7 @@
+from typing import Any, Callable, Generic, Type, TypeVar, cast, Sequence
+
+from torch import Tensor, cat, device as Device, dtype as DType, empty
+
 Logger = Callable[[Any], None]
 
 CollatableProps = list[Any] | Tensor
@@ -8,21 +12,11 @@ class AbstractBatchInput:
     _list_keys: list[str] = []
     _tensor_keys: dict[str, tuple[int, ...]] = {}
     
-    def to(self, device: torch.device, dtype: torch.dtype) -> "Batch":
+    def to(self, device: Device, dtype: DType) -> "AbstractBatchInput":
         
         opts : dict[str, CollatableProps] = {}
-		for key in cls._tensor_keys:
-            
-            lst : list[Tensor] = []
-            for item in batch:
-                if not hasattr(item, key):
-                    raise ValueError(f"Key {key} is not present in {item}")
-                tensor = getattr(item, key)
-                if not isinstance(tensor, Tensor):
-                    raise ValueError(f"Key {key}, {tensor} should be a tensor")
-                lst.append(tensor)
-            
-            opts[key] = cat(lst)
+        for key in self.__class__._tensor_keys:
+            opts[key] = getattr(self, key).to(device=device, dtype=dtype)
               
         return self.__class__(**opts)
         
@@ -40,17 +34,17 @@ class AbstractBatchInput:
             setattr(self, key, kwargs[key])
 
     @classmethod
-    def collate_fn(cls: Type[InputType], batch: Sequence["AbstractColorPrompt"]) -> InputType:
+    def collate_fn(cls, batch: Sequence["AbstractBatchInput"]) -> "AbstractBatchInput":
         opts : dict[str, CollatableProps] = {}
         for key in cls._list_keys:
-
-            opts[key] : list[Any] = []
-
+            out_list = opts[key] = []
+            
             for item in batch:
                 if not hasattr(item, key):
                     raise ValueError(f"Key {key} is not present in {item}")
                 for prop in getattr(item, key):
-                    opts[key].append(prop)
+                    out_list.append(prop)
+                    
         for key in cls._tensor_keys:
             
             lst : list[Tensor] = []
@@ -67,7 +61,7 @@ class AbstractBatchInput:
         return cls(**opts)
     
     @classmethod
-    def empty(cls: Type[InputType]) -> InputType:
+    def empty(cls) -> "AbstractBatchInput":
         opts : dict[str, CollatableProps] = {}
         
         for key in cls._list_keys:
@@ -79,7 +73,7 @@ class AbstractBatchInput:
             
         return cls(**opts)
 
-    def get_indices(self: InputType, indices: list[int]) -> InputType:
+    def get_indices(self, indices: list[int]) -> "AbstractBatchInput":
         opts : dict[str, CollatableProps] = {}
         
         for key in self.__class__._list_keys:
@@ -89,15 +83,15 @@ class AbstractBatchInput:
             
         return self.__class__(**opts)
     
-    def get_prompt(self: InputType, prompt: str) -> InputType:
+    def get_prompt(self, prompt: str) -> "AbstractBatchInput":
         prompts = cast(list[str], getattr(self, "source_prompts"))
         indices = [i for i, p in enumerate(prompts) if p == prompt]
         return self.get_indices(indices)
     
 class AbstractBatchOutput(Generic[InputType], AbstractBatchInput):
-    __input_type: Type[InputType]
+    __input_type: Type[AbstractBatchInput]
     
-    def to_input(self) -> InputType:
+    def to_input(self) -> "AbstractBatchInput":
         opts : dict[str, CollatableProps] = {}
         
         for key in self.__input_type._list_keys:
@@ -105,4 +99,4 @@ class AbstractBatchOutput(Generic[InputType], AbstractBatchInput):
         for key in self.__input_type._tensor_keys:
             opts[key] = getattr(self, key)
         
-        return self.__input_type()
+        return self.__input_type(**opts)

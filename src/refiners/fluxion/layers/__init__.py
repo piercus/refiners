@@ -12,7 +12,7 @@ from refiners.fluxion.layers.attentions import (
     ScaledDotProductAttention,
     SelfAttention,
     SelfAttention2d,
-    SelfAttention3d
+    SelfAttention3d,
 )
 from refiners.fluxion.layers.basics import (
     Cos,

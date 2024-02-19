@@ -1,4 +1,7 @@
-from refiners.training_utils.trainers.histogram_auto_encoder import HistogramAutoEncoderTrainer, TrainHistogramAutoEncoderConfig
+from refiners.training_utils.trainers.histogram_auto_encoder import (
+    HistogramAutoEncoderTrainer,
+    TrainHistogramAutoEncoderConfig,
+)
 
 if __name__ == "__main__":
     import sys

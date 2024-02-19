@@ -1,29 +1,23 @@
-from operator import neg
-from typing import Any, List, TypeVar
+from typing import Any, List, TypeVar, cast
 
-from torch import cat, ones
 from jaxtyping import Float
-from torch import Tensor, device as Device, dtype as DType, tensor, zeros, float32
-from torch.nn import init, Parameter
+from torch import Tensor, cat, device as Device, dtype as DType, float32, ones, tensor, zeros
 from torch.nn.functional import pad
 
 import refiners.fluxion.layers as fl
+from ip_adapter_palette.types import Color, Palette, PaletteCluster
 from refiners.fluxion.adapters.adapter import Adapter
 from refiners.fluxion.layers.attentions import ScaledDotProductAttention
-from refiners.foundationals.clip.common import PositionalEncoder, FeedForward
+from refiners.fluxion.layers.basics import Parameter
+from refiners.foundationals.clip.common import FeedForward, PositionalEncoder
 from refiners.foundationals.clip.text_encoder import TransformerLayer
+from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.unet import SD1UNet
 from refiners.foundationals.latent_diffusion.stable_diffusion_xl.unet import SDXLUNet
-from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
 
 TSDNet = TypeVar("TSDNet", bound="SD1UNet | SDXLUNet")
 
-Color = tuple[int, int, int]
-ColorWeight = float
 
-PaletteCluster = tuple[Color, ColorWeight]
-
-Palette = list[PaletteCluster]
 
 class PalettesTokenizer(fl.Module):
     _lda: list[SD1Autoencoder]
@@ -197,9 +191,11 @@ class PaletteMLPEncoder(fl.Chain):
 
 
 
-from sklearn.cluster import KMeans # type: ignore
 import numpy as np
 from PIL import Image
+from sklearn.cluster import KMeans  # type: ignore
+
+
 class PaletteExtractor:
     def __init__(
         self,
@@ -219,15 +215,18 @@ class PaletteExtractor:
         image_np = np.array(image)
         pixels = image_np.reshape(-1, 3)
         return self.from_pixels(pixels, size)
-    def from_pixels(self, pixels: np.ndarray, size: int | None = None) -> Palette:
+
+    def from_pixels(self, pixels: np.ndarray[int, Any], size: int | None = None) -> Palette:
         kmeans = KMeans(n_clusters=size).fit(pixels) # type: ignore 
         counts = np.unique(kmeans.labels_, return_counts=True)[1] # type: ignore
         palette : Palette = []
+        if size is None:
+            size = self.size
         total = pixels.shape[0]
         for i in range(0, size):
             center_float : tuple[float, float, float] = kmeans.cluster_centers_[i] # type: ignore
             center : Color = tuple(center_float.astype(int)) # type: ignore
-            count = float(counts[i].item())
+            count : int = float(counts[i].item()) # type: ignore
             color_cluster: PaletteCluster = (
                 center,
                 count / total if self.weighted_palette else 1.0 / size
@@ -241,12 +240,12 @@ class PaletteExtractor:
             raise Exception('histogram must be 4 dimensions')
         cube_size = 2 ** color_bits
         color_factor = 256 / cube_size
-        pixels : list[np.ndarray] = []
-        for histo in histogram.split(1):
+        pixels : list[np.ndarray[int, Any]] = []
+        for histo in histogram.split(1): # type: ignore
             for r in range(cube_size):
                 for g in range(cube_size):
                     for b in range(cube_size):
-                        for i in range(int(histo[0, r, g, b]* num)):
+                        for _ in range(int(histo[0, r, g, b]* num)): # type: ignore
                             pixels.append(np.array([r*color_factor, g*color_factor, b*color_factor]))                
             
         return self.from_pixels(np.array(pixels), size)
@@ -395,6 +394,9 @@ class PaletteCrossAttention(fl.Chain):
     def scale(self, value: float) -> None:
         self._scale = value
         self.ensure_find(fl.Multiply).scale = value
+    
+    def weights(self) -> list[Parameter]:
+        return cast(list[Parameter], list(self.ensure_find(fl.Linear).parameters()))
 
 
 class PaletteCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
@@ -422,15 +424,7 @@ class PaletteCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
     @property
     def palette_cross_attention(self) -> PaletteCrossAttention:
         return self.ensure_find(PaletteCrossAttention)
-
-    @property
-    def image_key_projection(self) -> fl.Linear:
-        return self.palette_cross_attention.Distribute[1].Linear
-
-    @property
-    def image_value_projection(self) -> fl.Linear:
-        return self.palette_cross_attention.Distribute[2].Linear
-
+    
     @property
     def scale(self) -> float:
         return self._scale
@@ -439,16 +433,10 @@ class PaletteCrossAttentionAdapter(fl.Chain, Adapter[fl.Attention]):
     def scale(self, value: float) -> None:
         self._scale = value
         self.palette_cross_attention.scale = value
-
-    def load_weights(self, key_tensor: Tensor, value_tensor: Tensor) -> None:
-        self.image_key_projection.weight = Parameter(key_tensor)
-        self.image_value_projection.weight = Parameter(value_tensor)
-        self.palette_cross_attention.to(self.device, self.dtype)
-
+    
     @property
-    def weights(self) -> list[Tensor]:
-        return [self.image_key_projection.weight, self.image_value_projection.weight]
-
+    def weights(self) -> list[Parameter]:
+        return cast(list[Parameter], list(self.palette_cross_attention.parameters()))
 
 class SD1PaletteAdapter(fl.Chain, Adapter[TSDNet]):
     # Prevent PyTorch module registration
@@ -476,21 +464,22 @@ class SD1PaletteAdapter(fl.Chain, Adapter[TSDNet]):
         ]
         
         if weights is not None:
-            palette_state_dict: dict[str, Tensor] = {
-                k.removeprefix("palette_encoder."): v for k, v in weights.items() if k.startswith("palette_encoder.")
-            }
-            self._palette_encoder[0].load_state_dict(palette_state_dict)
+            raise NotImplementedError("Loading weights is not implemented yet")
+            # palette_state_dict: dict[str, Tensor] = {
+            #     k.removeprefix("palette_encoder."): v for k, v in weights.items() if k.startswith("palette_encoder.")
+            # }
+            # self._palette_encoder[0].load_state_dict(palette_state_dict)
             
-            for i, cross_attn in enumerate(self.sub_adapters):
-                # cross_attention_weights: list[Tensor] = []
+            # for i, cross_attn in enumerate(self.sub_adapters):
+            #     # cross_attention_weights: list[Tensor] = []
                 
-                ## Tmp code
-                index = i*2
-                index2 = index + 1
-                cross_attn.load_weights(
-                    weights[f"palette_adapter.{index:03d}"],
-                    weights[f"palette_adapter.{index2:03d}"],
-                )
+            #     ## Tmp code
+            #     index = i*2
+            #     index2 = index + 1
+            #     cross_attn.load_weights(
+            #         weights[f"palette_adapter.{index:03d}"],
+            #         weights[f"palette_adapter.{index2:03d}"],
+            #     )
                 
                 # prefix = f"palette_adapter.{i:03d}."
                 # for k, v in weights.items():
@@ -501,8 +490,8 @@ class SD1PaletteAdapter(fl.Chain, Adapter[TSDNet]):
                 # assert len(cross_attention_weights) == 2
                 # cross_attn.load_weights(*cross_attention_weights)
     @property
-    def weights(self) -> List[Tensor]:
-        weights: List[Tensor] = []
+    def weights(self) -> List[Parameter]:
+        weights: List[Parameter] = []
         for adapter in self.sub_adapters:
             weights.extend(adapter.weights)
         return weights
@@ -510,8 +499,7 @@ class SD1PaletteAdapter(fl.Chain, Adapter[TSDNet]):
     def zero_init(self) -> None:
         weights = self.weights
         for weight in weights:
-            for w in weight:
-                init.zeros_(w)
+            init.zeros_(weight) # type: ignore
 
     def inject(self, parent: fl.Chain | None = None) -> "SD1PaletteAdapter[Any]":
         for adapter in self.sub_adapters:

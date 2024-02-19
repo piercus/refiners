@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple, TypeVar, TypedDict, Sequence, Type, Generic, cast
+from typing import Any, List, Tuple, cast, Callable
 
 import numpy as np
 import numpy.typing as npt
@@ -6,46 +6,12 @@ from PIL import Image
 from sklearn.metrics import ndcg_score  # type: ignore
 from sklearn.neighbors import NearestNeighbors  # type: ignore
 
+
+from ip_adapter_palette.types import Color, Palette, BatchOutput, ImageAndPalette
+
 from refiners.fluxion.utils import tensor_to_images
-from refiners.fluxion.adapters.palette import Color, Palette
-
-from torch import empty, Tensor, cat
-
-class ImageAndPalette(TypedDict):
-    image: Image.Image
-    palette: list[Color]
-    
 
 
-
-class BatchPalettePrompt(AbstractColorPrompt):
-    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes"]
-    _tensor_keys: dict[str, tuple[int, ...]] = {
-        "text_embeddings": (77, 768)
-    }
-
-class BatchInput(AbstractColorResults[BatchPalettePrompt]):    
-    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
-    _tensor_keys: dict[str, tuple[int, ...]] = {
-        "text_embeddings": (77, 768),
-        "result_images": (3, 512, 512)
-    }
-
-class BatchHistogramPrompt(AbstractColorPrompt):
-    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes"]
-    _tensor_keys: dict[str, tuple[int, ...]] = {
-        "source_histograms": (64, 64, 64),
-        "text_embeddings": (77, 768),
-    }
-
-class BatchHistogramResults(AbstractColorResults[AbstractColorPrompt]):
-    _list_keys: List[str] = ["source_palettes", "source_prompts", "source_images", "db_indexes", "result_palettes"]
-    _tensor_keys: dict[str, tuple[int, ...]] = {
-        "source_histograms": (64, 64, 64),
-        "text_embeddings": (77, 768),
-        "result_images": (3, 512, 512),
-        "result_histograms": (64, 64, 64)
-    }
 
 def image_palette_metrics(
     image: Image.Image, palette: list[Color], img_size: Tuple[int, int] = (256, 256), sampling_size: int = 1000
@@ -85,7 +51,7 @@ def image_palette_metrics(
     return ([y_true_ranking], [counts], distances_list)
 
 
-def batch_image_palette_metrics(log: Logger, images_and_palettes: list[ImageAndPalette], prefix: str = "palette-img"):
+def batch_image_palette_metrics(log: Callable[[Any], None], images_and_palettes: list[ImageAndPalette], prefix: str = "palette-img"):
     per_num: dict[int, Any] = {}
     for image_and_palette in images_and_palettes:
         palette = image_and_palette["palette"]
@@ -111,7 +77,9 @@ def batch_image_palette_metrics(log: Logger, images_and_palettes: list[ImageAndP
         else:
             log({f"{prefix}/std_dev_{num}": np.std(per_num[num]["distances"]).item()})
 
-def batch_palette_metrics(log: Logger, images_and_palettes: BatchHistogramResults, prefix: str = "palette-img"):
+
+
+def batch_palette_metrics(log: Callable[[Any], None], images_and_palettes: BatchOutput, prefix: str = "palette-img"):
     
     source_palettes = cast(list[Palette], images_and_palettes.source_palettes) # type: ignore
     palettes: list[list[Color]] = []

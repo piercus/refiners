@@ -1,12 +1,12 @@
 from PIL import Image
+from torch import Tensor, cat, device as Device, dtype as DType, zeros_like
+from torch.nn import LogSoftmax
+
+from refiners.fluxion.layers import Chain
+from refiners.fluxion.layers.basics import Reshape, Squeeze, Unsqueeze
 from refiners.fluxion.layers.converter import Converter
 from refiners.fluxion.utils import summarize_tensor
-from torch import Tensor, device as Device, dtype as DType, zeros_like, cat
-from torch.nn import LogSoftmax
-from refiners.fluxion.layers.basics import Reshape, Unsqueeze, Squeeze
-from refiners.foundationals.latent_diffusion.auto_encoder import Encoder, Decoder
-from refiners.fluxion.layers import Chain
-
+from refiners.foundationals.latent_diffusion.auto_encoder import Decoder, Encoder
 
 
 class HistogramAutoEncoder(Chain):

@@ -1,7 +1,7 @@
 import random
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, TypeVar, List
+from typing import Any, Callable, List, TypeVar
 
 from datasets import DownloadManager  # type: ignore
 from loguru import logger
@@ -12,6 +12,7 @@ from torchvision.transforms import Compose, RandomCrop, RandomHorizontalFlip  # 
 
 from refiners.training_utils.datasets.utils import resize_image
 from refiners.training_utils.huggingface_datasets import HuggingfaceDataset, HuggingfaceDatasetConfig, load_hf_dataset
+
 
 @dataclass
 class TextImageDatasetItem:

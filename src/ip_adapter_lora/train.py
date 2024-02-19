@@ -1,22 +1,27 @@
+import random
 from dataclasses import dataclass
 from functools import cached_property
-from loguru import logger
 from pathlib import Path
-import random
+
+import torch
+from loguru import logger
+from PIL import Image
+from torch.nn import functional as F
+
 from ip_adapter_lora.callback import (
     OffloadToCPU,
     OffloadToCPUConfig,
     SaveBestModel,
     SaveBestModelConfig,
 )
-from ip_adapter_lora.config import Config, IPAdapterConfig, SDModelConfig, LatentDiffusionConfig
+from ip_adapter_lora.config import Config, IPAdapterConfig, LatentDiffusionConfig, SDModelConfig
 from ip_adapter_lora.latent_diffusion import SD1TrainerMixin
 from refiners.fluxion import load_from_safetensors
 from refiners.fluxion.utils import no_grad
 from refiners.foundationals.latent_diffusion import SD1IPAdapter
 from refiners.training_utils import (
-    register_model,
     register_callback,
+    register_model,
 )
 from refiners.training_utils.config import (
     OptimizerConfig,
@@ -25,12 +30,8 @@ from refiners.training_utils.config import (
     SchedulerType,
     TrainingConfig,
 )
-
 from refiners.training_utils.trainer import Trainer
 from refiners.training_utils.wandb import WandbConfig, WandbLoggable, WandbMixin
-import torch
-from torch.nn import functional as F
-from PIL import Image
 
 
 @dataclass

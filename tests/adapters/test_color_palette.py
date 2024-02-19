@@ -1,7 +1,13 @@
 import torch
 
-from refiners.fluxion.adapters.color_palette import ColorPaletteEncoder, PalettesTokenizer, ColorPaletteExtractor, ColorPalette
+from refiners.fluxion.adapters.color_palette import (
+    ColorPalette,
+    ColorPaletteEncoder,
+    ColorPaletteExtractor,
+    PalettesTokenizer,
+)
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
+
 
 def test_colors_tokenizer() -> None:
     max_colors = 10
@@ -222,6 +228,7 @@ def test_0_layer_color_palette_encoder() -> None:
 
 
 from PIL import Image
+
 
 def test_palette_extractor() -> None:
 

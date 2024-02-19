@@ -6,8 +6,8 @@ from refiners.fluxion.adapters.histogram import HistogramEncoder, HistogramExtra
 from refiners.fluxion.utils import image_to_tensor
 from refiners.foundationals.clip.text_encoder import CLIPTextEncoder
 from refiners.foundationals.latent_diffusion.stable_diffusion_1.model import SD1Autoencoder
-from refiners.training_utils.datasets.palette import Palette
 from refiners.training_utils.datasets.latent_diffusion import TextEmbeddingLatentsBaseDataset, TextEmbeddingLatentsBatch
+from refiners.training_utils.datasets.palette import Palette
 from refiners.training_utils.huggingface_datasets import HuggingfaceDatasetConfig
 
 
