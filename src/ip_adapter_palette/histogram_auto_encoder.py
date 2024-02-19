@@ -1,14 +1,15 @@
-from PIL import Image
 from torch import Tensor, cat, device as Device, dtype as DType, zeros_like
-from torch.nn import LogSoftmax
+from torch.nn import LogSoftmax as _LogSoftmax
 
 from refiners.fluxion.layers import Chain
 from refiners.fluxion.layers.basics import Reshape, Squeeze, Unsqueeze
 from refiners.fluxion.layers.converter import Converter
-from refiners.fluxion.utils import summarize_tensor
+from refiners.fluxion.layers.module import Module
 from refiners.foundationals.latent_diffusion.auto_encoder import Decoder, Encoder
 
-
+class LogSoftmax(_LogSoftmax, Module):
+    pass
+        
 class HistogramAutoEncoder(Chain):
     encoder_scale = 1
 
@@ -77,13 +78,6 @@ class HistogramAutoEncoder(Chain):
         x = decoder(x / self.encoder_scale)
         return x
 
-    def image_to_latent(self, image: Image.Image) -> Tensor:
-        return self.images_to_latents([image])
-
-    def images_to_latents(self, images: list[Image.Image]) -> Tensor:
-        histograms = self.histogram_extractor.images_to_histograms(images)
-        return self.encode(histograms)
-    
     @property
     def compression_rate(self) -> int:
         return (2**self.n_down_samples)**3 / self.latent_dim
