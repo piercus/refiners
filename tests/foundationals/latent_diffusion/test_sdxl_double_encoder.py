@@ -103,7 +103,7 @@ def test_double_text_encoder(diffusers_sdxl: DiffusersSDXL, double_text_encoder:
 
 
 @no_grad()
-def test_double_text_encoder_batch2(diffusers_sdxl: DiffusersSDXL, double_text_encoder: DoubleTextEncoder) -> None:
+def test_double_text_encoder_batch2(double_text_encoder: DoubleTextEncoder) -> None:
     manual_seed(seed=0)
     prompt1 = "A photo of a pizza."
     prompt2 = "A giant duck."
