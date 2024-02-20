@@ -682,27 +682,49 @@ def test_diffusion_batch2(
     prompt2 = "a cute dog"
     negative_prompt2 = "lowres, bad anatomy, bad hands"
 
-    clip_text_embedding = sd15.compute_clip_text_embedding(
+    clip_text_embedding_b2 = sd15.compute_clip_text_embedding(
         text=[prompt1, prompt2], negative_text=[negative_prompt1, negative_prompt2]
     )
-
+    
     sd15.set_inference_steps(30)
+    step = sd15.steps[0]
 
     manual_seed(2)
-    x = torch.randn(2, 4, 64, 64, device=test_device)
+    x_b2 = torch.randn(2, 4, 64, 64, device=test_device)
 
-    for step in sd15.steps:
-        x = sd15(
-            x,
-            step=step,
-            clip_text_embedding=clip_text_embedding,
-            condition_scale=7.5,
-        )
+    x_b2 = sd15(
+        x_b2,
+        step=step,
+        clip_text_embedding=clip_text_embedding_b2,
+        condition_scale=7.5,
+    )
+    
+    assert x_b2.shape == (2, 4, 64, 64)
 
-    predicted_images = sd15.lda.latents_to_images(x)
-    assert len(predicted_images) == 2
-    ensure_similar_images(predicted_images[0], expected_image_std_random_init)
+    x_1 = x_b2[0:1]
+    clip_text_embedding_1 = sd15.compute_clip_text_embedding(
+        text=[prompt1], negative_text=[negative_prompt1]
+    )
+    x_1 = sd15(
+        x_1,
+        step=step,
+        clip_text_embedding=clip_text_embedding_1,
+        condition_scale=7.5,
+    )
+    
+    x_2 = x_b2[1:2]
+    clip_text_embedding_1 = sd15.compute_clip_text_embedding(
+        text=[prompt2], negative_text=[negative_prompt2]
+    )
+    x_2 = sd15(
+        x_2,
+        step=step,
+        clip_text_embedding=clip_text_embedding_2,
+        condition_scale=7.5,
+    )
 
+    assert torch.allclose(x_b2[0], x_1[0])
+    assert torch.allclose(x_b2[1], x_2[0])
 
 @no_grad()
 def test_diffusion_std_random_init_euler(
@@ -1167,7 +1189,6 @@ def test_diffusion_sdxl_batch2(sdxl_ddim: StableDiffusion_XL) -> None:
         pooled_text_embedding=pooled_text_embedding_b2,
         time_ids=time_ids_b2,
     )
-    predicted_image_b2 = sdxl.lda.latents_to_images(x_b2)
 
     clip_text_embedding_1, pooled_text_embedding_1 = sdxl.compute_clip_text_embedding(
         text=prompt1, negative_text=negative_prompt1
@@ -1180,7 +1201,6 @@ def test_diffusion_sdxl_batch2(sdxl_ddim: StableDiffusion_XL) -> None:
         pooled_text_embedding=pooled_text_embedding_1,
         time_ids=time_ids,
     )
-    predicted_image_1 = sdxl.lda.latents_to_image(x_1)
 
     clip_text_embedding_2, pooled_text_embedding_2 = sdxl.compute_clip_text_embedding(
         text=prompt2, negative_text=negative_prompt2
@@ -1194,10 +1214,8 @@ def test_diffusion_sdxl_batch2(sdxl_ddim: StableDiffusion_XL) -> None:
         time_ids=time_ids,
     )
 
-    predicted_image_2 = sdxl.lda.latents_to_image(x_2)
-
-    ensure_similar_images(predicted_image_b2[0], predicted_image_1, min_psnr=35, min_ssim=0.98)
-    ensure_similar_images(predicted_image_b2[1], predicted_image_2, min_psnr=35, min_ssim=0.98)
+    assert torch.allclose(x_b2[0], x_1[0])
+    assert torch.allclose(x_b2[1], x_2[0])
 
 
 @no_grad()

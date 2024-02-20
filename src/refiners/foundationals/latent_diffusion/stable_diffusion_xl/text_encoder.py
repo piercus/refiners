@@ -1,7 +1,7 @@
 from typing import cast
 
 from jaxtyping import Float
-from torch import Tensor, cat, device as Device, dtype as DType
+from torch import Tensor, cat, device as Device, dtype as DType, split
 
 import refiners.fluxion.layers as fl
 from refiners.fluxion.adapters.adapter import Adapter
@@ -48,7 +48,7 @@ class TextEncoderWithPooling(fl.Chain, Adapter[CLIPTextEncoderG]):
         return self.ensure_find(CLIPTokenizer)
 
     def set_end_of_text_index(self, end_of_text_index: list[int], tokens: Tensor) -> None:
-        for str_tokens in tokens.split(1):  # type: ignore
+        for str_tokens in split(tokens, 1):
             position = (str_tokens == self.tokenizer.end_of_text_token_id).nonzero(as_tuple=True)[1].item()  # type: ignore
             end_of_text_index.append(cast(int, position))
 
