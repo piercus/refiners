@@ -40,7 +40,7 @@ class TextEncoderWithPooling(fl.Chain, Adapter[CLIPTextEncoderG]):
     def init_context(self) -> Contexts:
         return {"text_encoder_pooling": {"end_of_text_index": []}}
 
-    def __call__(self, text: str) -> tuple[Float[Tensor, "batch 77 1280"], Float[Tensor, "batch 1280"]]:
+    def __call__(self, text: str | list[str]) -> tuple[Float[Tensor, "batch 77 1280"], Float[Tensor, "batch 1280"]]:
         return super().__call__(text)
 
     @property
