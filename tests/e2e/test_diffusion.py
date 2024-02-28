@@ -812,6 +812,27 @@ def test_diffusion_batch2(sd15_std: StableDiffusion_1):
 
 
 @no_grad()
+def test_compute_clip_batch2(sd15_std: StableDiffusion_1):
+    sd15 = sd15_std
+
+    prompt1 = "a cute cat, detailed high-quality professional image"
+    prompt2 = "a cute dog"
+
+    clip_text_embedding_b2 = sd15.compute_clip_text_embedding(text=[prompt1, prompt2])
+
+    clip_text_embedding_1 = sd15.compute_clip_text_embedding(text=[prompt1])
+    clip_text_embedding_2 = sd15.compute_clip_text_embedding(text=[prompt2])
+
+    # The 5e-3 tolerance is detailed in https://github.com/finegrain-ai/refiners/pull/263#issuecomment-1956404911
+    assert torch.allclose(
+        clip_text_embedding_b2[0], clip_text_embedding_1[0], atol=5e-3, rtol=0
+    ), f"Batch 2 and batch1 output should be the same and are distant of {torch.max((clip_text_embedding_b2[0] - clip_text_embedding_1[0]).abs()).item()}"
+    assert torch.allclose(
+        clip_text_embedding_b2[1], clip_text_embedding_2[0], atol=5e-3, rtol=0
+    ), f"Batch 2 and batch1 output should be the same and are distant of {torch.max((clip_text_embedding_b2[1] - clip_text_embedding_2[0]).abs()).item()}"
+
+
+@no_grad()
 def test_diffusion_std_random_init_euler(
     sd15_euler: StableDiffusion_1, expected_image_std_random_init_euler: Image.Image, test_device: torch.device
 ):

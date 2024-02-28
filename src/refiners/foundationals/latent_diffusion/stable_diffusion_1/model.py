@@ -77,7 +77,7 @@ class StableDiffusion_1(LatentDiffusionModel):
                 If not provided, the negative prompt is assumed to be empty (i.e., `""`).
         """
         text = [text] if isinstance(text, str) else text
-        negative_text = [negative_text] if isinstance(negative_text, str) else negative_text
+        negative_text = [negative_text]*len(text) if isinstance(negative_text, str) else negative_text
         assert len(text) == len(negative_text), "The length of the text list and negative_text should be the same"
 
         conditional_embedding = self.clip_text_encoder(text)
